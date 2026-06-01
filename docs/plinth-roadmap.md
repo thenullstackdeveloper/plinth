@@ -194,8 +194,21 @@ El orden prioriza retirar riesgo, no construir lo vistoso primero.
 
 ## 8. Decisiones pendientes
 
-- **Licencia.** Recomendación: **Apache-2.0** (permisiva, concesión de patentes, buena
-  señal para portfolio; coherente con "no monetizar"). Pendiente de confirmar.
+- **Licencia. → DIFERIDA, ABIERTA A DEBATE.** Decisión pospuesta a propósito; mientras el
+  repo sea privado (y aun público sin licencia), rige *todos los derechos reservados*, así
+  que el trabajo ya está protegido por defecto. El usuario ha matizado su intención:
+  *"gratis para la comunidad, pero que nadie saque dinero de mi trabajo"*. Eso reabre el
+  debate entre dos caminos:
+  - **Source-available no comercial** (ej. PolyForm Noncommercial): refleja literalmente
+    ese deseo (uso libre no comercial, sin que terceros lucren). **Contra:** no es "open
+    source" según la OSI, puede frenar a contribuidores y resta algo de alcance como pieza
+    de portfolio.
+  - **Permisiva** (Apache-2.0 / MIT): máxima lectura y reutilización del código → mejor
+    señal de portfolio. **Contra:** permite explícitamente el uso comercial por terceros,
+    que es justo lo que el usuario quiere evitar.
+  - *Punto a resolver en el debate:* cuánto pesa "que nadie lucre" frente al alcance de
+    portfolio. Decidir **antes de hacer público** el repo (revertir es difícil si la
+    comunidad ya usa el código bajo una licencia permisiva).
 - **SO objetivo de v1.** Recomendación: **Linux primero** (donde se hace dogfooding).
 - **Dominio y marca.** Verificar disponibilidad de `plinth` (`.gg` / `.app` / `.io`) y
   registro de marca (USPTO / EUIPO) para software. Sin conflicto aparente en software de
