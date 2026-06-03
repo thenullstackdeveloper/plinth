@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/plinth-domain",
+    "crates/plinth-application",
+    "crates/plinth-infra",
+]
+
+[workspace.package]
+edition = "2021"
+version = "0.0.0"
+publish = false
+# Licencia diferida a propósito (ver docs/plinth-roadmap.md §8). Mientras tanto:
+# todos los derechos reservados. No publicar en crates.io.
+
+[workspace.dependencies]
+plinth-domain = { path = "crates/plinth-domain" }
+plinth-application = { path = "crates/plinth-application" }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml_ng = "0.10"
+jsonschema = "0.46"
+quick-xml = { version = "0.40", features = ["serialize"] }
+dirs = "6"
+evdev = "0.13"

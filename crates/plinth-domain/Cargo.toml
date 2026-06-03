@@ -1,0 +1,8 @@
+[package]
+name = "plinth-domain"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true

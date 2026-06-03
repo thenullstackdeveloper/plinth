@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plinth.dev/schema/plinth.template.schema.json",
+  "title": "Plinth template",
+  "description": "Contrato declarativo de una plantilla de panel. Fuente de verdad de la forma; las acciones se validan contra el catálogo cerrado del dominio.",
+  "type": "object",
+  "required": ["schema_version", "metadata", "pages", "sidebar"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Versión del esquema con el que se creó la plantilla."
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["game", "version", "author"],
+      "additionalProperties": false,
+      "properties": {
+        "game": { "type": "string" },
+        "version": { "type": "string" },
+        "author": { "type": "string" }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/page" }
+    },
+    "sidebar": {
+      "type": "object",
+      "required": ["default_side", "components"],
+      "additionalProperties": false,
+      "properties": {
+        "default_side": { "enum": ["left", "right"] },
+        "components": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/component" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "page": {
+      "type": "object",
+      "required": ["components"],
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/component" }
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "required": ["id", "position", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "position": {
+          "type": "object",
+          "required": ["row", "col"],
+          "additionalProperties": false,
+          "properties": {
+            "row": { "type": "integer", "minimum": 0 },
+            "col": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identificador resoluble por el catálogo: 'app.*' para acciones de app, o un ID semántico de juego."
+        },
+        "label": { "type": "string" },
+        "icon": { "type": "string" }
+      }
+    }
+  }
+}

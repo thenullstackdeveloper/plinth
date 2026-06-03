@@ -1,0 +1,11 @@
+# Da acceso a /dev/uinput al grupo `input`, para que Plinth pueda crear un
+# teclado virtual sin privilegios de root.
+#
+# Instalación:
+#   sudo cp packaging/99-uinput.rules /etc/udev/rules.d/99-uinput.rules
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   # asegúrate de pertenecer al grupo `input`:  sudo usermod -aG input "$USER"
+#   # (cierra y reabre sesión para que el grupo surta efecto)
+#
+# Carga el módulo si no está presente:  sudo modprobe uinput
+KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

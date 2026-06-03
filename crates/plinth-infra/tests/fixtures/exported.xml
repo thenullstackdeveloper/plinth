@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ActionMaps version="1">
+  <actionmap name="spaceship_general">
+    <action name="v_eject">
+      <rebind input="kb1_y"/>
+    </action>
+  </actionmap>
+  <actionmap name="spaceship_power">
+    <action name="v_toggle_shields">
+      <rebind input="kb1_o"/>
+    </action>
+  </actionmap>
+</ActionMaps>
