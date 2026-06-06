@@ -10,8 +10,8 @@ members = [
 edition = "2021"
 version = "0.0.0"
 publish = false
-# Licencia diferida a propósito (ver docs/plinth-roadmap.md §8). Mientras tanto:
-# todos los derechos reservados. No publicar en crates.io.
+# License intentionally deferred (see docs/roadmap.md §8). For now: all rights
+# reserved. Do not publish on crates.io.
 
 [workspace.dependencies]
 plinth-domain = { path = "crates/plinth-domain" }

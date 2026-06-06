@@ -1,5 +1,5 @@
-//! `RuntimeState`: la **única entidad mutable** del dominio. Raíz del segundo
-//! agregado. Página actual, candado, toggles.
+//! `RuntimeState`: the **single mutable entity** of the domain. Root of the
+//! second aggregate. Current page, lock, toggles.
 
 use std::collections::HashMap;
 
@@ -7,14 +7,14 @@ use crate::error::DomainError;
 use crate::key::SidebarSide;
 use crate::template::ComponentId;
 
-/// Dirección de navegación entre páginas.
+/// Navigation direction between pages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NavDirection {
     Next,
     Prev,
 }
 
-/// Estado mutable del panel en ejecución.
+/// Mutable state of the running panel.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeState {
     current_page: usize,
@@ -49,8 +49,8 @@ impl RuntimeState {
         self.toggles.get(id).copied().unwrap_or(false)
     }
 
-    /// Navega una página. **Invariante:** rechazado con el candado activo, y
-    /// no se sale del rango `[0, page_count)`.
+    /// Navigates one page. **Invariant:** rejected while the lock is engaged, and
+    /// never leaves the range `[0, page_count)`.
     pub fn navigate(&mut self, dir: NavDirection, page_count: usize) -> Result<(), DomainError> {
         if self.locked {
             return Err(DomainError::LockEngaged);
@@ -70,7 +70,7 @@ impl RuntimeState {
         self.go_to(target, page_count)
     }
 
-    /// Salta a una página concreta. Misma invariante de candado y rango.
+    /// Jumps to a specific page. Same lock and range invariant.
     pub fn go_to(&mut self, idx: usize, page_count: usize) -> Result<(), DomainError> {
         if self.locked {
             return Err(DomainError::LockEngaged);
@@ -85,17 +85,17 @@ impl RuntimeState {
         Ok(())
     }
 
-    /// Alterna el candado. Nunca falla: bloquear/desbloquear siempre es legal.
+    /// Toggles the lock. Never fails: locking/unlocking is always legal.
     pub fn toggle_lock(&mut self) {
         self.locked = !self.locked;
     }
 
-    /// Cambia la sidebar de lado. Siempre legal.
+    /// Switches the sidebar side. Always legal.
     pub fn switch_sidebar(&mut self) {
         self.sidebar_side = self.sidebar_side.flip();
     }
 
-    /// Alterna el estado de un toggle y devuelve el **nuevo** estado.
+    /// Flips a toggle's state and returns the **new** state.
     pub fn flip_toggle(&mut self, id: &ComponentId) -> bool {
         let entry = self.toggles.entry(id.clone()).or_insert(false);
         *entry = !*entry;

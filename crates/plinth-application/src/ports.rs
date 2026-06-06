@@ -1,23 +1,22 @@
-//! Puertos de salida: **traits definidos por el consumidor**. La capa de
-//! aplicación declara aquí lo que necesita del mundo; infra los implementa.
-//! La dirección de la dependencia se invierte: infra → application, nunca al
-//! revés.
+//! Outbound ports: **consumer-defined traits**. The application layer declares
+//! here what it needs from the world; infra implements them. The dependency
+//! direction is inverted: infra → application, never the other way around.
 
 use std::time::Duration;
 
 use plinth_domain::{ActionCatalog, GameAction, KeyBinding, ScanCode, Template};
 
-/// Valor de un evento de tecla a nivel de input: pulsada o soltada.
+/// Value of a key event at the input level: pressed or released.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyValue {
     Down,
     Up,
 }
 
-/// Un evento de input atómico que la capa de aplicación entrega a `InputSender`.
-/// Es deliberadamente de bajo nivel: el *timing* (holds) lo orquesta el
-/// `SequenceRunner` usando el `Clock`, no el adaptador, para que sea testeable
-/// con un reloj falso.
+/// An atomic input event the application layer hands to `InputSender`. It is
+/// deliberately low-level: timing (holds) is orchestrated by the
+/// `SequenceRunner` using the `Clock`, not by the adapter, so it is testable
+/// with a fake clock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyEvent {
     pub code: ScanCode,
@@ -41,78 +40,78 @@ impl KeyEvent {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("error de la capa de input: {0}")]
+#[error("input layer error: {0}")]
 pub struct InputError(pub String);
 
 #[derive(Debug, thiserror::Error)]
 pub enum ResolveError {
-    #[error("la acción `{0}` existe pero no tiene tecla asignada")]
+    #[error("action `{0}` exists but has no key bound to it")]
     NotBound(GameAction),
-    #[error("error del proveedor de keybinds: {0}")]
+    #[error("keybind provider error: {0}")]
     Provider(String),
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("error refrescando keybinds: {0}")]
+#[error("error refreshing keybinds: {0}")]
 pub struct ProviderError(pub String);
 
 #[derive(Debug, thiserror::Error)]
-#[error("error cargando la plantilla: {0}")]
+#[error("error loading the template: {0}")]
 pub struct TemplateError(pub String);
 
 #[derive(Debug, thiserror::Error)]
-#[error("error de configuración: {0}")]
+#[error("configuration error: {0}")]
 pub struct ConfigError(pub String);
 
 #[derive(Debug, thiserror::Error)]
-#[error("error de colocación de ventana: {0}")]
+#[error("window placement error: {0}")]
 pub struct PlacementError(pub String);
 
-/// Emite eventos de input al sistema. *(Peso arquitectónico real:
-/// portabilidad por SO; la impl concreta depende del sistema operativo.)*
+/// Emits input events to the system. *(Real architectural weight: per-OS
+/// portability; the concrete impl depends on the operating system.)*
 pub trait InputSender {
     fn emit(&self, events: &[KeyEvent]) -> Result<(), InputError>;
 }
 
-/// Resuelve acciones de juego a teclas leyendo la configuración real del
-/// juego. *(Peso real: aquí vive TODO lo específico de SC. Juego #2 = nueva
-/// impl; el núcleo no cambia.)*
+/// Resolves game actions to keys by reading the game's real configuration.
+/// *(Real weight: everything SC-specific lives here. Game #2 = a new impl; the
+/// core does not change.)*
 pub trait GameKeybindProvider {
     fn resolve(&self, action: &GameAction) -> Result<KeyBinding, ResolveError>;
     fn refresh(&mut self) -> Result<(), ProviderError>;
-    /// El catálogo de acciones conocidas. Alimenta la autoridad del dominio en
-    /// el composition root.
+    /// The catalog of known actions. Feeds the domain's authority at the
+    /// composition root.
     fn catalog(&self) -> ActionCatalog;
 }
 
-/// Carga una plantilla **ya validada** (forma + catálogo + invariantes). El
-/// `serde`/parseo queda interno a infra: este puerto solo expone el agregado
-/// de dominio.
+/// Loads an **already-validated** template (shape + catalog + invariants). The
+/// `serde`/parsing stays internal to infra: this port only exposes the domain
+/// aggregate.
 pub trait TemplateSource {
     fn load(&self, reference: &str) -> Result<Template, TemplateError>;
 }
 
-/// Reloj inyectable: timing determinista en tests.
+/// Injectable clock: deterministic timing in tests.
 pub trait Clock {
     fn sleep(&self, dur: Duration);
 }
 
-/// Preferencias persistidas del usuario.
+/// Persisted user preferences.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Prefs {
     pub sidebar_side: plinth_domain::SidebarSide,
     pub last_template: Option<String>,
 }
 
-/// Almacén de preferencias. *(Ligero; colapsable a llamada directa de infra.)*
+/// Preferences store. *(Lightweight; collapsible to a direct infra call.)*
 pub trait ConfigStore {
     fn load(&self) -> Result<Prefs, ConfigError>;
     fn save(&self, prefs: &Prefs) -> Result<(), ConfigError>;
 }
 
-/// Colocación de la ventana del panel. *Seam diseñado, no construido*: en
-/// Linux es no-op (la ventana la gestionan reglas de Hyprland); en Win/Mac
-/// será código real (futuro).
+/// Placement of the panel window. *A designed seam, not built out*: on Linux it
+/// is a no-op (the window is managed by Hyprland rules); on Win/Mac it will be
+/// real code (future).
 pub trait WindowPlacement {
     fn place(&self) -> Result<(), PlacementError>;
 }

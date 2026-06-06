@@ -1,6 +1,6 @@
-//! Casos de uso = puertos de entrada. Funciones finas que orquestan el dominio
-//! y los puertos de salida. La capa de UI (en una fase posterior) invoca estos
-//! puntos de entrada; nunca toca los puertos ni el dominio directamente.
+//! Use cases = inbound ports. Thin functions that orchestrate the domain and the
+//! outbound ports. The UI layer (in a later phase) calls these entry points; it
+//! never touches the ports or the domain directly.
 
 use plinth_domain::{
     Action, AppAction, Component, ComponentId, DomainError, GameAction, KeySequence, KeyStepKind,
@@ -13,7 +13,7 @@ use crate::ports::{
     TemplateSource,
 };
 
-/// El error unificado de la capa de aplicación.
+/// The unified error of the application layer.
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
     #[error(transparent)]
@@ -28,17 +28,17 @@ pub enum AppError {
     Provider(#[from] ProviderError),
 }
 
-/// LoadTemplate — carga una plantilla ya validada desde un `TemplateSource`.
+/// LoadTemplate — loads an already-validated template from a `TemplateSource`.
 pub fn load_template<S: TemplateSource>(source: &S, reference: &str) -> Result<Template, AppError> {
     Ok(source.load(reference)?)
 }
 
-/// RefreshKeybinds — relee la configuración real de keybinds del juego.
+/// RefreshKeybinds — re-reads the game's real keybind configuration.
 pub fn refresh_keybinds<P: GameKeybindProvider>(provider: &mut P) -> Result<(), AppError> {
     Ok(provider.refresh()?)
 }
 
-/// Navigate — navega una página (respeta el candado y los límites).
+/// Navigate — navigates one page (respects the lock and the bounds).
 pub fn navigate(
     state: &mut RuntimeState,
     template: &Template,
@@ -48,7 +48,7 @@ pub fn navigate(
     Ok(())
 }
 
-/// GoToPage — salta a una página concreta.
+/// GoToPage — jumps to a specific page.
 pub fn go_to_page(
     state: &mut RuntimeState,
     template: &Template,
@@ -58,21 +58,21 @@ pub fn go_to_page(
     Ok(())
 }
 
-/// ToggleLock — alterna el candado.
+/// ToggleLock — toggles the lock.
 pub fn toggle_lock(state: &mut RuntimeState) {
     state.toggle_lock();
 }
 
-/// SwitchSidebarSide — cambia la barra lateral de lado.
+/// SwitchSidebarSide — switches the sidebar side.
 pub fn switch_sidebar_side(state: &mut RuntimeState) {
     state.switch_sidebar();
 }
 
-/// ExecuteAction — el corazón. Despacha la acción de un componente.
+/// ExecuteAction — the heart. Dispatches a component's action.
 ///
-/// La separación por tipo es la garantía de seguridad: una `AppAction` solo
-/// muta el `RuntimeState` (nunca inyecta teclas); una `GameAction` solo emite
-/// teclas (nunca toca la navegación). Un botón no puede hacer ambas cosas.
+/// The split by type is the security guarantee: an `AppAction` only mutates the
+/// `RuntimeState` (never injects keys); a `GameAction` only emits keys (never
+/// touches navigation). A button cannot do both.
 pub fn execute_action<I, P, C>(
     component_id: &ComponentId,
     template: &Template,
@@ -132,9 +132,9 @@ fn resolve_binding<P: GameKeybindProvider>(
     })
 }
 
-/// Expande una `KeySequence` en eventos de input intercalando `Clock::sleep`
-/// en los pasos `Hold`. Los pasos `Toggle` consultan/escriben el estado de
-/// toggle del componente en el `RuntimeState`.
+/// Expands a `KeySequence` into input events, interleaving `Clock::sleep` on
+/// `Hold` steps. `Toggle` steps read/write the component's toggle state in the
+/// `RuntimeState`.
 fn run_sequence<I: InputSender, C: Clock>(
     sequence: &KeySequence,
     component_id: &ComponentId,
@@ -153,8 +153,8 @@ fn run_sequence<I: InputSender, C: Clock>(
                 input.emit(&[KeyEvent::up(step.code)])?;
             }
             KeyStepKind::Toggle => {
-                // Una pulsación que voltea el estado en el juego; reflejamos el
-                // estado percibido en el runtime para que la UI lo resalte.
+                // A press that flips the state in the game; we mirror the
+                // perceived state in the runtime so the UI can highlight it.
                 state.flip_toggle(component_id);
                 input.emit(&[KeyEvent::down(step.code), KeyEvent::up(step.code)])?;
             }
@@ -163,7 +163,7 @@ fn run_sequence<I: InputSender, C: Clock>(
     Ok(())
 }
 
-/// QueryRenderState — proyecta el estado actual a un DTO para la UI.
+/// QueryRenderState — projects the current state into a DTO for the UI.
 pub fn query_render_state(template: &Template, state: &RuntimeState) -> RenderState {
     let to_view = |c: &Component| ComponentView {
         id: c.id.as_str().to_string(),

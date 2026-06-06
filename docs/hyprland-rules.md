@@ -1,18 +1,17 @@
-# Reglas de Hyprland para el panel de Plinth
+# Hyprland rules for the Plinth panel
 
-> En Wayland, Tauri **no** controla la posición, el "siempre encima" ni el "sin
-> foco" de la ventana (ver `docs/plinth-fase0-analisis.md` §3). Esas tres cosas
-> se delegan a reglas del compositor. Este documento es el requisito de
-> instalación del panel en Linux/Hyprland. El adaptador `window_placement` de
-> `plinth-infra` es un **no-op** a propósito: la colocación vive aquí.
+> On Wayland, Tauri does **not** control window position, "always-on-top", or "no-focus" (see
+> `docs/input-linux.md`). Those three are delegated to compositor rules. This document is the
+> panel's Linux/Hyprland setup requirement. The `window_placement` adapter in `plinth-infra` is
+> a deliberate **no-op**: placement lives here.
 
-## 1. Reglas de ventana (`windowrulev2`)
+## 1. Window rules (`windowrulev2`)
 
-Añade a `~/.config/hypr/hyprland.conf`. Ajusta `title`/`class` al de la ventana
-de Plinth y `monitor`/`size`/`move` a tu pantalla táctil.
+Add to `~/.config/hypr/hyprland.conf`. Adjust `title`/`class` to match the Plinth window and
+`monitor`/`size`/`move` to your touchscreen.
 
 ```ini
-# El panel: flotante, fijado, en el monitor táctil, tamaño fijo y SIN foco.
+# The panel: floating, pinned, on the touchscreen monitor, fixed size, and NO focus.
 windowrulev2 = float,        title:^(Plinth)$
 windowrulev2 = pin,          title:^(Plinth)$
 windowrulev2 = nofocus,      title:^(Plinth)$
@@ -22,29 +21,26 @@ windowrulev2 = move 0 600,   title:^(Plinth)$
 windowrulev2 = noborder,     title:^(Plinth)$
 ```
 
-`nofocus` es la pieza clave: el panel recibe toques pero **nunca** el foco de
-teclado, de modo que las teclas que inyecta Plinth (vía uinput) van a la ventana
-del juego, que conserva el foco.
+`nofocus` is the key piece: the panel receives touches but **never** keyboard focus, so the keys
+Plinth injects (via uinput) go to the game window, which keeps focus.
 
-> **Riesgo nº1 del proyecto (R1):** en multi-monitor, `nofocus` puede mover el
-> foco de workspace al tocar (Hyprland issue #5618). **Hay que validarlo
-> empíricamente** con el spike de la Fase 0 (test crítico: tocar el panel →
-> `hyprctl activewindow` confirma que el juego mantiene el foco de teclado). Si
-> falla, el fallback es renderizar el panel como superficie `wlr-layer-shell`
-> con `keyboard_interactivity = none` (puente `gtk4-layer-shell` sobre wry).
+> **Project risk #1 (R1):** on multi-monitor setups, `nofocus` may move workspace focus on tap
+> (Hyprland issue #5618). **It must be validated empirically** with the Phase 0 spike (critical
+> test: tap the panel → `hyprctl activewindow` confirms the game keeps keyboard focus). If it
+> fails, the fallback is to render the panel as a `wlr-layer-shell` surface with
+> `keyboard_interactivity = none` (a `gtk4-layer-shell` bridge over wry).
 
-## 2. Configuración del juego (Star Citizen)
+## 2. Game configuration (Star Citizen)
 
-- **Borderless windowed:** en `USER.cfg`, `r_WindowMode = 1`. Una ventana normal
-  convive mucho mejor con un panel en el segundo monitor que el *fullscreen*
-  exclusivo.
-- **Evitar gamescope** si es posible: captura el input y puede quedarse con el
-  teclado. Si se usa, probar explícitamente la convivencia con el panel.
+- **Borderless windowed:** in `USER.cfg`, `r_WindowMode = 1`. A normal window coexists with a
+  panel on the second monitor far better than exclusive *fullscreen*.
+- **Avoid gamescope** if possible: it grabs input and may keep the keyboard. If used, explicitly
+  test coexistence with the panel.
 
-## 3. Acceso a `/dev/uinput`
+## 3. Access to `/dev/uinput`
 
-Plinth crea un teclado virtual con uinput. Eso requiere acceso a `/dev/uinput`:
+Plinth creates a virtual keyboard with uinput. That requires access to `/dev/uinput`:
 
-- Pertenecer al grupo `input`, **o**
-- instalar la regla udev de `packaging/99-uinput.rules` (recomendado para
-  distribución).
+- Be a member of the `input` group, **or**
+- install the udev rule from `packaging/99-uinput.rules` (recommended for distribution).
+```

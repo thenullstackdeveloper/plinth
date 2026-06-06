@@ -1,21 +1,20 @@
-//! El catálogo de acciones: la **autoridad de legalidad** del dominio.
+//! The action catalog: the domain's **legality authority**.
 //!
-//! El dominio es agnóstico al juego, así que **no hardcodea** ningún ID de
-//! ningún juego concreto. En su lugar, el conjunto de `ActionId` legales de
-//! juego se *inyecta* en tiempo de composición (lo provee el adaptador de juego
-//! en infra vía `GameKeybindProvider::catalog`). Lo que vive aquí es la
-//! *autoridad*:
-//! el método [`ActionCatalog::resolve`], única puerta por la que una cadena se
-//! convierte en `Action`. Una acción desconocida muere aquí y por tanto **no
-//! puede llegar nunca a `ExecuteAction`** (es inconstruible).
+//! The domain is game-agnostic, so it **does not hardcode** any ID from any
+//! specific game. Instead, the set of legal game `ActionId`s is *injected* at
+//! composition time (provided by the game adapter in infra via
+//! `GameKeybindProvider::catalog`). What lives here is the *authority*:
+//! the [`ActionCatalog::resolve`] method, the single gate through which a string
+//! becomes an `Action`. An unknown action dies here and therefore **can never
+//! reach `ExecuteAction`** (it is unconstructable).
 
 use std::collections::BTreeSet;
 
 use crate::action::{Action, ActionId, AppAction, GameAction};
 use crate::error::DomainError;
 
-/// Conjunto cerrado de acciones de juego legales. Las acciones de app son
-/// intrínsecas (enum cerrado) y no necesitan figurar aquí.
+/// Closed set of legal game actions. App actions are intrinsic (a closed enum)
+/// and need not be listed here.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ActionCatalog {
     game_actions: BTreeSet<ActionId>,
@@ -28,7 +27,7 @@ impl ActionCatalog {
         }
     }
 
-    /// ¿Es `id` una acción de juego conocida?
+    /// Is `id` a known game action?
     pub fn contains(&self, id: &ActionId) -> bool {
         self.game_actions.contains(id)
     }
@@ -37,15 +36,15 @@ impl ActionCatalog {
         self.game_actions.iter()
     }
 
-    /// Convierte una cadena cruda (de una plantilla) en un `Action` legal.
+    /// Turns a raw string (from a template) into a legal `Action`.
     ///
-    /// Orden de resolución:
-    /// 1. Acción de app reservada (`app.*`) → `Action::App`.
+    /// Resolution order:
+    /// 1. Reserved app action (`app.*`) → `Action::App`.
     /// 2. `app.go_to_page:<n>` → `Action::App(GoToPage)`.
-    /// 3. ID presente en el catálogo de juego → `Action::Game`.
-    /// 4. En otro caso → [`DomainError::UnknownAction`].
+    /// 3. ID present in the game catalog → `Action::Game`.
+    /// 4. Otherwise → [`DomainError::UnknownAction`].
     ///
-    /// Esta es la frontera de seguridad: lo que no encaja, no se construye.
+    /// This is the security boundary: what doesn't fit isn't constructed.
     pub fn resolve(&self, raw: &str) -> Result<Action, DomainError> {
         if let Some(app) = AppAction::from_reserved(raw) {
             return Ok(Action::App(app));

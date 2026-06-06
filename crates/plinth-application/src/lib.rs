@@ -1,8 +1,8 @@
-//! `plinth-application` — casos de uso y **definición de puertos**.
+//! `plinth-application` — use cases and **port definitions**.
 //!
-//! Depende solo de `plinth-domain`. Aquí no entra ningún crate de
-//! infraestructura ni lógica de ningún juego concreto: el fitness test de CI
-//! lo verifica comprobando que no se importan esos crates.
+//! Depends only on `plinth-domain`. No infrastructure crate or logic from any
+//! specific game enters here: the CI fitness test verifies this by checking
+//! those crates aren't imported.
 
 pub mod dto;
 pub mod ports;
@@ -61,8 +61,8 @@ mod tests {
         GameAction(ActionId::new("v_target_lock"))
     }
 
-    /// Plantilla de 2 páginas: pág0 con un botón de juego y un toggle de juego;
-    /// pág1 con un botón de app (next/lock). Sidebar con lock.
+    /// A 2-page template: page0 with a game button and a game toggle; page1 with
+    /// an app button (next/lock). Sidebar with a lock.
     fn template() -> Template {
         let page0 = Page::new(vec![
             comp("lock_target", Action::Game(target_lock())),
@@ -121,7 +121,7 @@ mod tests {
         )
         .unwrap();
 
-        // Hold(shift): down, [sleep], up ; luego Press(t): down, up.
+        // Hold(shift): down, [sleep], up ; then Press(t): down, up.
         assert_eq!(
             input.recorded(),
             vec![
@@ -158,10 +158,10 @@ mod tests {
         let mut state = RuntimeState::new(SidebarSide::Right);
         let input = FakeInputSender::new();
         let clock = FakeClock::new();
-        // Catálogo conoce v_unbound pero no hay binding para él.
+        // The catalog knows v_unbound but there is no binding for it.
         let provider = provider();
 
-        // Construimos una plantilla con un botón que apunta a v_unbound.
+        // Build a template with a button pointing at v_unbound.
         let page = Page::new(vec![comp(
             "eject",
             Action::Game(GameAction(ActionId::new("v_unbound"))),
@@ -176,7 +176,7 @@ mod tests {
             },
         )
         .unwrap();
-        let _ = template; // silencia unused en este caso
+        let _ = template; // silence unused in this case
 
         let err = execute_action(
             &ComponentId::new("eject"),
@@ -216,7 +216,7 @@ mod tests {
         assert_eq!(state.current_page(), 1);
         assert!(
             input.recorded().is_empty(),
-            "un botón de app nunca inyecta teclas"
+            "an app button never injects keys"
         );
     }
 
@@ -228,7 +228,7 @@ mod tests {
         let clock = FakeClock::new();
         let provider = provider();
 
-        // Activa el candado vía el botón de la sidebar.
+        // Engage the lock via the sidebar button.
         execute_action(
             &ComponentId::new("lock"),
             &template,
@@ -296,7 +296,7 @@ mod tests {
     fn render_state_projection_and_dto_omission() {
         let template = template();
         let mut state = RuntimeState::new(SidebarSide::Left);
-        // Marca un toggle para verificar que llega al DTO.
+        // Set a toggle to verify it reaches the DTO.
         let input = FakeInputSender::new();
         let clock = FakeClock::new();
         let provider = provider();
@@ -321,15 +321,14 @@ mod tests {
         assert!(shield.toggled);
         assert_eq!(shield.action_kind, ActionKind::Game);
 
-        // --- Test de omisión del DTO ---
-        // `RenderState` describe qué pintar, nunca qué tecla se emite. Esta
-        // comprobación estructural (vía la representación Debug) falla si algún
-        // día se filtra un código de tecla al DTO, forzando una decisión
-        // consciente.
+        // --- DTO-omission test ---
+        // `RenderState` describes what to render, never which key is emitted.
+        // This structural check (via the Debug representation) fails if a key
+        // code ever leaks into the DTO, forcing a conscious decision.
         let dump = format!("{render:?}");
         assert!(
             !dump.contains("ScanCode") && !dump.contains("KeyEvent") && !dump.contains("KeyStep"),
-            "el RenderState no debe exponer códigos de tecla resueltos: {dump}"
+            "RenderState must not expose resolved key codes: {dump}"
         );
     }
 }

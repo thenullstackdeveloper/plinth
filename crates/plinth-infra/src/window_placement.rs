@@ -1,11 +1,11 @@
-//! Colocación de ventana.
+//! Window placement.
 //!
-//! En Linux/Hyprland es **no-op a propósito**: la posición, el "siempre
-//! encima" y el "sin foco" del panel los gestionan reglas del compositor
-//! (`windowrulev2`), no el código de la app, porque Tauri no controla la
-//! ventana bajo Wayland (ver `docs/plinth-fase0-analisis.md` §3 y
-//! `docs/hyprland-rules.md`). En Windows/macOS este *seam* alojará código real
-//! con APIs nativas de ventana (futuro).
+//! On Linux/Hyprland it is a **deliberate no-op**: the panel's position,
+//! "always-on-top", and "no-focus" are handled by compositor rules
+//! (`windowrulev2`), not the app's code, because Tauri does not control the
+//! window under Wayland (see `docs/input-linux.md` and `docs/hyprland-rules.md`).
+//! On Windows/macOS this *seam* will host real code using native window APIs
+//! (future).
 
 use plinth_application::{PlacementError, WindowPlacement};
 
@@ -20,7 +20,7 @@ impl LinuxWindowPlacement {
 
 impl WindowPlacement for LinuxWindowPlacement {
     fn place(&self) -> Result<(), PlacementError> {
-        // No-op: la colocación vive en las reglas de Hyprland.
+        // No-op: placement lives in the Hyprland rules.
         Ok(())
     }
 }

@@ -1,11 +1,11 @@
-//! `InputSender` sobre **uinput** (crate `evdev`). Crea un teclado virtual a
-//! nivel de kernel, *por debajo* del compositor, así que funciona igual en
-//! X11/Wayland y es transparente para Hyprland, Wine/Proton y EAC (ver
-//! `docs/plinth-fase0-analisis.md` §2).
+//! `InputSender` over **uinput** (the `evdev` crate). Creates a kernel-level
+//! virtual keyboard, *below* the compositor, so it works the same on X11/Wayland
+//! and is transparent to Hyprland, Wine/Proton, and EAC (see
+//! `docs/input-linux.md`).
 //!
-//! `VirtualDevice::emit` requiere `&mut self` y la traza `InputSender::emit` es
-//! `&self`, así que el dispositivo vive tras un `Mutex` (además permite
-//! compartir el sender entre hilos, p. ej. los comandos de Tauri).
+//! `VirtualDevice::emit` requires `&mut self` and the `InputSender::emit` trait
+//! is `&self`, so the device lives behind a `Mutex` (which also allows sharing
+//! the sender across threads, e.g. the Tauri commands).
 
 use std::sync::Mutex;
 
@@ -17,24 +17,24 @@ pub struct UinputSender {
 }
 
 impl UinputSender {
-    /// Abre `/dev/uinput` y declara un teclado virtual capaz de emitir todo el
-    /// rango de teclas estándar. Requiere acceso a `/dev/uinput` (grupo
-    /// `input` o la regla udev de `packaging/99-uinput.rules`).
+    /// Opens `/dev/uinput` and declares a virtual keyboard able to emit the whole
+    /// standard key range. Requires access to `/dev/uinput` (the `input` group or
+    /// the udev rule in `packaging/99-uinput.rules`).
     pub fn open() -> Result<Self, InputError> {
         let mut keys = AttributeSet::<KeyCode>::new();
-        // Declara el rango de teclas estándar de teclado (1..=248 cubre letras,
-        // dígitos, función, navegación y numpad).
+        // Declare the standard keyboard key range (1..=248 covers letters,
+        // digits, function, navigation, and numpad).
         for code in 1u16..=248 {
             keys.insert(KeyCode::new(code));
         }
 
         let device = VirtualDevice::builder()
-            .map_err(|e| InputError(format!("no se pudo abrir /dev/uinput: {e}")))?
+            .map_err(|e| InputError(format!("could not open /dev/uinput: {e}")))?
             .name("Plinth Virtual Keyboard")
             .with_keys(&keys)
-            .map_err(|e| InputError(format!("no se pudieron declarar las teclas: {e}")))?
+            .map_err(|e| InputError(format!("could not declare the keys: {e}")))?
             .build()
-            .map_err(|e| InputError(format!("no se pudo crear el dispositivo virtual: {e}")))?;
+            .map_err(|e| InputError(format!("could not create the virtual device: {e}")))?;
 
         Ok(Self {
             device: Mutex::new(device),
@@ -56,10 +56,10 @@ impl InputSender for UinputSender {
         let mut device = self
             .device
             .lock()
-            .map_err(|_| InputError("mutex del dispositivo envenenado".into()))?;
+            .map_err(|_| InputError("device mutex poisoned".into()))?;
         device
             .emit(&raw)
-            .map_err(|e| InputError(format!("fallo emitiendo eventos: {e}")))
+            .map_err(|e| InputError(format!("failed emitting events: {e}")))
     }
 }
 
@@ -68,17 +68,17 @@ mod tests {
     use super::*;
     use plinth_domain::ScanCode;
 
-    /// Test de integración real: crea un `VirtualDevice` y emite `KEY_A`.
-    /// Requiere `/dev/uinput` accesible → `#[ignore]` para que no corra en CI.
-    /// Correr en la máquina del dev con: `cargo test -p plinth-infra -- --ignored`
-    /// y verificar con `wev` / `evtest` / `libinput debug-events`.
+    /// Real integration test: creates a `VirtualDevice` and emits `KEY_A`.
+    /// Requires `/dev/uinput` to be accessible → `#[ignore]` so it doesn't run in
+    /// CI. Run on the dev machine with: `cargo test -p plinth-infra -- --ignored`
+    /// and verify with `wev` / `evtest` / `libinput debug-events`.
     #[test]
-    #[ignore = "requiere /dev/uinput (máquina del dev, no CI)"]
+    #[ignore = "requires /dev/uinput (dev machine, not CI)"]
     fn emits_key_a_to_real_uinput() {
-        let sender = UinputSender::open().expect("abrir uinput");
+        let sender = UinputSender::open().expect("open uinput");
         let key_a = ScanCode::new(30);
         sender
             .emit(&[KeyEvent::down(key_a), KeyEvent::up(key_a)])
-            .expect("emitir KEY_A");
+            .expect("emit KEY_A");
     }
 }

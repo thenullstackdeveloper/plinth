@@ -1,8 +1,8 @@
-//! `plinth-domain` — el lenguaje del producto, puro y agnóstico al juego.
+//! `plinth-domain` — the product's language, pure and game-agnostic.
 //!
-//! Esta crate no depende de ningún crate de infraestructura ni de lógica
-//! específica de ningún juego concreto. Es la regla de oro de la arquitectura:
-//! si algo de eso aparece aquí, **no compila**, y el fitness test de CI lo caza.
+//! This crate depends on no infrastructure crate and no logic specific to any
+//! particular game. It is the architecture's golden rule: if any of that appears
+//! here, it **won't compile**, and the CI fitness test catches it.
 
 pub mod action;
 pub mod catalog;
@@ -98,7 +98,7 @@ mod tests {
                 max: 2
             }
         ));
-        // Prev desde la página 0 también está fuera de rango.
+        // Prev from page 0 is also out of range.
         let mut at_zero = RuntimeState::new(SidebarSide::Left);
         assert!(matches!(
             at_zero.navigate(NavDirection::Prev, 3).unwrap_err(),

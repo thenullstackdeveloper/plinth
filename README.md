@@ -1,56 +1,56 @@
 # Plinth
 
-Panel de control de escritorio para juegos de PC sobre una **pantalla táctil**
-(form factor *ultrawide* bajo el monitor). Botones y acciones configurables mediante
-**plantillas declarativas**, *game-aware*, y gratis para la comunidad.
+Desktop control panel for PC games on a **touchscreen** (an *ultrawide* unit sitting under
+the monitor). Buttons and actions are configurable through **declarative templates**,
+*game-aware*, and free for the community.
 
-> **Estado:** MVP en construcción. El núcleo hexagonal (dominio + casos de uso +
-> adaptadores) ya está implementado y testeado; faltan la capa Tauri/React y el
-> spike de validación de input (Fase 0) sobre la máquina del desarrollador.
+> **Status:** MVP in progress. The hexagonal core (domain + use cases + adapters) is
+> implemented and tested; the Tauri/React layer and the Phase 0 input-validation spike (on
+> the developer's machine) are still pending.
 
 ## Idea
 
-Similar en espíritu a un Stream Deck, pero pensado para gaming y deliberadamente
-diferenciado: navegación multi-página deslizable estilo tablet, *sidebar* configurable
-para diestros/zurdos con candado anti-cambio accidental, y vinculación de las plantillas a
-*acciones del juego* (no a teclas físicas), resueltas desde la configuración real de
-keybinds. Primer vertical: **Star Citizen**.
+Similar in spirit to a Stream Deck, but built for gaming and deliberately differentiated:
+tablet-style swipeable multi-page navigation, a configurable sidebar for right-/left-handed
+use with a lock that prevents accidental page changes, and templates bound to *game actions*
+(not physical keys), resolved from the game's real keybind configuration. First vertical:
+**Star Citizen**.
 
 ## Stack
 
-- **Núcleo:** Rust
+- **Core:** Rust
 - **UI:** Tauri + React + TypeScript (Framer Motion)
-- **Envío de input (Linux):** uinput, vía el crate `evdev`
+- **Input delivery (Linux):** uinput, via the `evdev` crate
 
-## Arquitectura
+## Architecture
 
-Workspace Cargo con **fronteras verificadas por el compilador** (puertos y
-adaptadores):
+Cargo workspace with **compiler-enforced boundaries** (ports & adapters):
 
 ```
-plinth-domain        ← (nada)                 puro: lenguaje del producto, agnóstico al juego
-plinth-application   → domain                 casos de uso + definición de puertos (traits)
-plinth-infra         → application, domain    adaptadores: uinput, keybinds de SC, plantillas, config
-plinth-tauri (bin)                            composition root + UI (fase posterior, aún no presente)
+plinth-domain        ← (nothing)              pure: product language, game-agnostic
+plinth-application   → domain                 use cases + port definitions (traits)
+plinth-infra         → application, domain    adapters: uinput, SC keybinds, templates, config
+plinth-tauri (bin)                            composition root + UI (later phase, not present yet)
 ```
 
-Un crate de infraestructura (`evdev`, `serde`…) usado desde el núcleo **no
-compila**; `scripts/fitness.sh` lo verifica además en CI.
+An infrastructure crate (`evdev`, `serde`…) used from the core **won't compile**;
+`scripts/fitness.sh` also enforces this in CI.
 
-## Desarrollo
+## Development
 
 ```bash
 cargo test --workspace --features plinth-application/testing   # tests (CI-safe)
-cargo test -p plinth-infra -- --ignored                        # test real de uinput (necesita /dev/uinput)
-./scripts/fitness.sh                                           # fitness test arquitectónico
+cargo test -p plinth-infra -- --ignored                        # real uinput test (needs /dev/uinput)
+./scripts/fitness.sh                                           # architectural fitness test
 ```
 
-## Documentación
+## Documentation
 
-- [Contexto del proyecto](docs/plinth-contexto.md)
-- [Roadmap](docs/plinth-roadmap.md)
-- [Análisis técnico de la Fase 0](docs/plinth-fase0-analisis.md)
+- [Architecture](docs/architecture.md)
+- [Roadmap](docs/roadmap.md)
+- [Input on Linux (uinput, focus, anti-cheat)](docs/input-linux.md)
+- [Hyprland rules (panel setup)](docs/hyprland-rules.md)
 
-## Licencia
+## License
 
-Pendiente de decidir. Por ahora, **todos los derechos reservados**.
+Undecided for now. **All rights reserved.**

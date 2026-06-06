@@ -1,10 +1,10 @@
-//! Smoke test de toda la arquitectura, **CI-safe** (sin `/dev/uinput`, sin SC,
-//! sin root). Es el análogo del "slice vertical" del roadmap sin el device
-//! físico: carga una plantilla real (`template_fs`) y un export real de SC
-//! (`keybinds_sc`), construye el catálogo desde el proveedor, y ejercita
-//! `ExecuteAction` con un `FakeInputSender`/`FakeClock`. Verifica que tocar un
-//! botón de juego emite la tecla que dicta el keybind, recorriendo todas las
-//! capas y los dos puertos pesados (salvo el adaptador uinput físico).
+//! Whole-architecture smoke test, **CI-safe** (no `/dev/uinput`, no SC, no root).
+//! It is the analogue of the roadmap's "vertical slice" without the physical
+//! device: it loads a real template (`template_fs`) and a real SC export
+//! (`keybinds_sc`), builds the catalog from the provider, and exercises
+//! `ExecuteAction` with a `FakeInputSender`/`FakeClock`. It verifies that tapping
+//! a game button emits the key the keybind dictates, traversing all layers and
+//! both heavyweight ports (except the physical uinput adapter).
 
 use std::path::PathBuf;
 
@@ -23,28 +23,28 @@ fn fixture(name: &str) -> PathBuf {
 
 #[test]
 fn vertical_slice_with_fakes() {
-    // 1. Proveedor de keybinds desde el export real de SC.
+    // 1. Keybind provider from the real SC export.
     let provider =
-        ScKeybindProvider::from_export_file(fixture("exported.xml")).expect("parsear export de SC");
+        ScKeybindProvider::from_export_file(fixture("exported.xml")).expect("parse SC export");
 
-    // 2. El catálogo del dominio se alimenta del proveedor (composition root).
+    // 2. The domain catalog is fed by the provider (composition root).
     let catalog = plinth_application::GameKeybindProvider::catalog(&provider);
 
-    // 3. Cargador de plantillas con ese catálogo como autoridad de legalidad.
-    let source = FsTemplateSource::new(catalog).expect("compilar schema");
+    // 3. Template loader with that catalog as the legality authority.
+    let source = FsTemplateSource::new(catalog).expect("compile schema");
     let template = {
         use plinth_application::TemplateSource;
         source
             .load(fixture("template.yaml").to_str().unwrap())
-            .expect("cargar plantilla")
+            .expect("load template")
     };
 
-    // 4. Estado + puertos falsos.
+    // 4. State + fake ports.
     let mut state = RuntimeState::new(SidebarSide::Right);
     let input = FakeInputSender::new();
     let clock = FakeClock::new();
 
-    // 5. Tocar el botón "eject" (kb1_y → KEY_Y == 21).
+    // 5. Tap the "eject" button (kb1_y → KEY_Y == 21).
     execute_action(
         &ComponentId::new("eject"),
         &template,
@@ -53,16 +53,16 @@ fn vertical_slice_with_fakes() {
         &provider,
         &clock,
     )
-    .expect("ejecutar acción de juego");
+    .expect("execute game action");
 
     let key_y = ScanCode::new(21);
     assert_eq!(
         input.recorded(),
         vec![KeyEvent::down(key_y), KeyEvent::up(key_y)],
-        "tocar 'eject' debe emitir la tecla del keybind (Y)"
+        "tapping 'eject' must emit the keybind's key (Y)"
     );
 
-    // 6. El DTO de render proyecta las dos páginas y la sidebar.
+    // 6. The render DTO projects the two pages and the sidebar.
     let render = query_render_state(&template, &state);
     assert_eq!(render.pages.len(), 2);
     assert_eq!(render.sidebar.len(), 1);
@@ -84,7 +84,7 @@ fn app_button_navigates_without_input() {
     let input = FakeInputSender::new();
     let clock = FakeClock::new();
 
-    // Avanza a la página 1 manipulando el estado, luego "back" (app.prev_page).
+    // Advance to page 1 by manipulating state, then "back" (app.prev_page).
     plinth_application::go_to_page(&mut state, &template, 1).unwrap();
     execute_action(
         &ComponentId::new("back"),
@@ -99,6 +99,6 @@ fn app_button_navigates_without_input() {
     assert_eq!(state.current_page(), 0);
     assert!(
         input.recorded().is_empty(),
-        "un botón de app no emite teclas"
+        "an app button emits no keys"
     );
 }

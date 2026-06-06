@@ -1,4 +1,4 @@
-//! Reloj real del sistema.
+//! Real system clock.
 
 use std::time::Duration;
 

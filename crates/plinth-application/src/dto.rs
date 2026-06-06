@@ -1,22 +1,22 @@
-//! DTOs de salida hacia la UI. Viven aquí, no en el dominio.
+//! Output DTOs toward the UI. They live here, not in the domain.
 //!
-//! **Regla del test de omisión del DTO:** `RenderState` describe *qué pintar*,
-//! nunca *qué tecla se emite*. No contiene `ScanCode` ni `KeyBinding` ni
-//! ningún detalle de resolución. Añadir un campo que filtre eso rompe el test
-//! de `tests` y obliga a una decisión consciente.
+//! **DTO-omission test rule:** `RenderState` describes *what to render*, never
+//! *which key is emitted*. It contains no `ScanCode`, no `KeyBinding`, no
+//! resolution detail. Adding a field that leaks that breaks the `tests` test and
+//! forces a conscious decision.
 
 use plinth_domain::SidebarSide;
 
-/// Una acción tal como la ve la UI: solo su naturaleza, sin teclas.
+/// An action as the UI sees it: only its nature, no keys.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionKind {
-    /// Acción de app (navegar, lock, sidebar). La UI puede pintarla distinto.
+    /// App action (navigate, lock, sidebar). The UI may render it differently.
     App,
-    /// Acción de juego: la UI solo sabe que "hace algo en el juego".
+    /// Game action: the UI only knows it "does something in the game".
     Game,
 }
 
-/// Un componente listo para pintar.
+/// A component ready to render.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComponentView {
     pub id: String,
@@ -25,17 +25,17 @@ pub struct ComponentView {
     pub label: Option<String>,
     pub icon: Option<String>,
     pub action_kind: ActionKind,
-    /// Estado de toggle (si aplica). La UI lo usa para el resaltado.
+    /// Toggle state (if applicable). The UI uses it for highlighting.
     pub toggled: bool,
 }
 
-/// Una página lista para pintar.
+/// A page ready to render.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PageView {
     pub components: Vec<ComponentView>,
 }
 
-/// El estado completo de render: lo único que la UI necesita.
+/// The full render state: everything the UI needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderState {
     pub pages: Vec<PageView>,

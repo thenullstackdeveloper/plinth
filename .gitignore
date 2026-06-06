@@ -1,7 +1,7 @@
 # ---- Rust / Tauri (backend) ----
 /target/
 /src-tauri/target/
-# Nota: Cargo.lock SÍ se versiona (Plinth es una aplicación/binario, no una librería).
+# Note: Cargo.lock IS committed (Plinth is an application/binary, not a library).
 
 # ---- Node / frontend ----
 node_modules/
@@ -9,18 +9,18 @@ node_modules/
 /dist-ssr/
 *.local
 
-# ---- Entorno / secretos ----
+# ---- Environment / secrets ----
 .env
 .env.*
 !.env.example
 
-# ---- Editores / IDE ----
+# ---- Editors / IDE ----
 .idea/
 .vscode/*
 !.vscode/extensions.json
 *.swp
 *.swo
 
-# ---- Sistema operativo ----
+# ---- Operating system ----
 .DS_Store
 Thumbs.db

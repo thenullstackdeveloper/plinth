@@ -1,4 +1,4 @@
-//! `ConfigStore` sobre el sistema de ficheros (JSON bajo el dir de config XDG).
+//! `ConfigStore` on the filesystem (JSON under the XDG config dir).
 
 use std::path::PathBuf;
 
@@ -6,8 +6,8 @@ use plinth_application::{ConfigError, ConfigStore, Prefs};
 use plinth_domain::SidebarSide;
 use serde::{Deserialize, Serialize};
 
-/// Mirror serializable de `Prefs`. Mantiene `serde` fuera de la capa de
-/// aplicación: el mapeo dominio↔disco vive aquí.
+/// Serializable mirror of `Prefs`. Keeps `serde` out of the application layer:
+/// the domain↔disk mapping lives here.
 #[derive(Serialize, Deserialize)]
 struct PrefsDto {
     sidebar_side: String,
@@ -23,10 +23,10 @@ impl FsConfigStore {
         Self { path }
     }
 
-    /// Ubicación por defecto: `$XDG_CONFIG_HOME/plinth/prefs.json`.
+    /// Default location: `$XDG_CONFIG_HOME/plinth/prefs.json`.
     pub fn at_default_location() -> Result<Self, ConfigError> {
         let dir = dirs::config_dir()
-            .ok_or_else(|| ConfigError("no se pudo determinar el directorio de config".into()))?;
+            .ok_or_else(|| ConfigError("could not determine the config directory".into()))?;
         Ok(Self::new(dir.join("plinth").join("prefs.json")))
     }
 }
@@ -42,7 +42,7 @@ fn side_from_str(s: &str) -> Result<SidebarSide, ConfigError> {
     match s {
         "left" => Ok(SidebarSide::Left),
         "right" => Ok(SidebarSide::Right),
-        other => Err(ConfigError(format!("lado de sidebar inválido: {other}"))),
+        other => Err(ConfigError(format!("invalid sidebar side: {other}"))),
     }
 }
 

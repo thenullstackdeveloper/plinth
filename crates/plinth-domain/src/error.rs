@@ -1,46 +1,46 @@
-//! Errores del dominio. Hablan el lenguaje del producto, nunca el de la
-//! infraestructura (sin rutas de fichero, sin tipos de la capa de input, etc.).
+//! Domain errors. They speak the product's language, never infrastructure's
+//! (no file paths, no input-layer types, etc.).
 
 use crate::action::ActionId;
 
-/// Todo lo que puede salir mal dentro del núcleo agnóstico al juego.
+/// Everything that can go wrong inside the game-agnostic core.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum DomainError {
-    /// Una cadena de acción no pertenece ni al catálogo de juego ni al
-    /// conjunto cerrado de acciones de app. No puede construirse un `Action`.
-    #[error("acción desconocida: `{0}` (no está en el catálogo)")]
+    /// An action string belongs neither to the game catalog nor to the closed
+    /// set of app actions. An `Action` cannot be constructed.
+    #[error("unknown action: `{0}` (not in the catalog)")]
     UnknownAction(String),
 
-    /// La acción de juego existe en el catálogo pero el usuario no le ha
-    /// asignado ninguna tecla. Distinto de `UnknownAction`.
-    #[error("la acción `{0}` no tiene ninguna tecla asignada")]
+    /// The game action exists in the catalog but the user has not bound any key
+    /// to it. Distinct from `UnknownAction`.
+    #[error("action `{0}` has no key bound to it")]
     ActionNotBound(ActionId),
 
-    /// Intento de ir a una página fuera de rango.
-    #[error("página fuera de rango: pedida {requested}, máximo {max}")]
+    /// Attempt to go to a page out of range.
+    #[error("page out of range: requested {requested}, max {max}")]
     PageOutOfRange { requested: usize, max: usize },
 
-    /// Navegación rechazada porque el candado está activo.
-    #[error("el candado está activo: navegación bloqueada")]
+    /// Navigation rejected because the lock is engaged.
+    #[error("lock engaged: navigation blocked")]
     LockEngaged,
 
-    /// Una plantilla sin páginas no es representable.
-    #[error("la plantilla no tiene páginas")]
+    /// A template with no pages is not representable.
+    #[error("the template has no pages")]
     EmptyTemplate,
 
-    /// Dos componentes comparten identificador dentro de la plantilla.
-    #[error("identificador de componente duplicado: `{0}`")]
+    /// Two components share an identifier within the template.
+    #[error("duplicate component identifier: `{0}`")]
     DuplicateComponentId(String),
 
-    /// Una secuencia de teclas vacía no tiene sentido.
-    #[error("secuencia de teclas vacía")]
+    /// An empty key sequence makes no sense.
+    #[error("empty key sequence")]
     EmptyKeySequence,
 
-    /// Se referenció un componente que no existe en la plantilla.
-    #[error("componente desconocido: `{0}`")]
+    /// A component that does not exist in the template was referenced.
+    #[error("unknown component: `{0}`")]
     UnknownComponent(String),
 
-    /// Una acción `GoToPage` apunta a un índice que la plantilla no tiene.
-    #[error("referencia de página inválida: {0}")]
+    /// A `GoToPage` action points to an index the template does not have.
+    #[error("invalid page reference: {0}")]
     InvalidPageReference(usize),
 }

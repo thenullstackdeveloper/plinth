@@ -1,16 +1,16 @@
-//! El tipo `Action` y sus dos categorías, separadas por diseño.
+//! The `Action` type and its two categories, separated by design.
 //!
-//! Regla de seguridad innegociable (ver `docs/plinth-contexto.md` §3): **no
-//! existe una variante `Raw(String)`**. "Ejecutar comando arbitrario" es
-//! *irrepresentable* en el sistema de tipos. Una plantilla maliciosa no puede
-//! describir nada que no esté en este catálogo cerrado.
+//! Non-negotiable security rule (see `docs/architecture.md`, security boundary):
+//! **there is no `Raw(String)` variant**. "Run an arbitrary command" is
+//! *unrepresentable* in the type system. A malicious template cannot describe
+//! anything outside this closed catalog.
 
 use std::fmt;
 
-/// Identificador semántico opaco de una acción de juego (p. ej.
-/// `"v_target_lock"`). **El dominio no lo interpreta**: es agnóstico al juego.
-/// La legalidad de un `ActionId` la decide el [`crate::catalog::ActionCatalog`],
-/// cuyo contenido específico de cada juego se inyecta desde infra.
+/// Opaque semantic identifier of a game action (e.g. `"v_target_lock"`).
+/// **The domain does not interpret it**: it is game-agnostic. The legality of an
+/// `ActionId` is decided by [`crate::catalog::ActionCatalog`], whose
+/// game-specific contents are injected from infra.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ActionId(String);
 
@@ -30,8 +30,8 @@ impl fmt::Display for ActionId {
     }
 }
 
-/// Acciones de la propia app. Enum **cerrado**: viven dentro del motor y son
-/// seguras por definición — nunca tocan el juego.
+/// The app's own actions. A **closed** enum: they live inside the engine and are
+/// safe by definition — they never touch the game.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppAction {
     NextPage,
@@ -42,10 +42,10 @@ pub enum AppAction {
 }
 
 impl AppAction {
-    /// Identificadores reservados con los que una plantilla referencia una
-    /// acción de app. El catálogo los reconoce antes que a las de juego.
-    /// `GoToPage` no aparece aquí porque lleva parámetro (se parsea aparte en
-    /// el mapper de infra).
+    /// Reserved identifiers a template uses to reference an app action. The
+    /// catalog recognizes them before game actions. `GoToPage` is not listed
+    /// here because it carries a parameter (parsed separately in the infra
+    /// mapper).
     pub fn from_reserved(raw: &str) -> Option<Self> {
         match raw {
             "app.next_page" => Some(AppAction::NextPage),
@@ -57,8 +57,8 @@ impl AppAction {
     }
 }
 
-/// Acción de juego: un identificador semántico que se resolverá a teclas vía
-/// el `GameKeybindProvider`. El payload es opaco.
+/// Game action: a semantic identifier that will be resolved to keys via the
+/// `GameKeybindProvider`. The payload is opaque.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameAction(pub ActionId);
 
@@ -68,9 +68,9 @@ impl fmt::Display for GameAction {
     }
 }
 
-/// Las dos únicas categorías de acción. La separación por tipo garantiza, por
-/// diseño, que un botón de app nunca inyecta teclas y uno de juego nunca muta
-/// estado (lo aplica `ExecuteAction` en la capa de aplicación).
+/// The only two action categories. The split by type guarantees, by design, that
+/// an app button never injects keys and a game button never mutates state
+/// (enforced by `ExecuteAction` in the application layer).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     App(AppAction),

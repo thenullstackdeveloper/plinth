@@ -1,11 +1,11 @@
-//! `TemplateSource` sobre el sistema de ficheros: YAML → validación de forma
-//! (JSON Schema) → mapeo al agregado del dominio consultando el catálogo.
+//! `TemplateSource` on the filesystem: YAML → shape validation (JSON Schema) →
+//! mapping to the domain aggregate by consulting the catalog.
 //!
-//! Los **tres checks en sus tres sitios**:
-//! 1. *Forma* → aquí, contra el JSON Schema versionado (errores claros).
-//! 2. *Pertenencia al catálogo* → aquí, pero la **autoridad es el dominio**:
-//!    cada cadena de acción pasa por `ActionCatalog::resolve`.
-//! 3. *Invariantes de negocio* → en los constructores del dominio (`Template`).
+//! The **three checks in their three places**:
+//! 1. *Shape* → here, against the versioned JSON Schema (clear errors).
+//! 2. *Catalog membership* → here, but the **authority is the domain**: every
+//!    action string goes through `ActionCatalog::resolve`.
+//! 3. *Business invariants* → in the domain constructors (`Template`).
 
 use std::path::Path;
 
@@ -16,8 +16,7 @@ use plinth_domain::{
 };
 use serde_json::Value;
 
-/// El JSON Schema se incrusta en el binario para que el adaptador sea
-/// autocontenido.
+/// The JSON Schema is embedded in the binary so the adapter is self-contained.
 const SCHEMA_SRC: &str = include_str!("../../../schema/plinth.template.schema.json");
 
 pub struct FsTemplateSource {
@@ -28,28 +27,28 @@ pub struct FsTemplateSource {
 impl FsTemplateSource {
     pub fn new(catalog: ActionCatalog) -> Result<Self, TemplateError> {
         let schema: Value = serde_json::from_str(SCHEMA_SRC)
-            .map_err(|e| TemplateError(format!("schema inválido: {e}")))?;
+            .map_err(|e| TemplateError(format!("invalid schema: {e}")))?;
         let validator = jsonschema::validator_for(&schema)
-            .map_err(|e| TemplateError(format!("no se pudo compilar el schema: {e}")))?;
+            .map_err(|e| TemplateError(format!("could not compile the schema: {e}")))?;
         Ok(Self { validator, catalog })
     }
 
-    /// Parsea + valida + mapea una cadena YAML (útil para tests y para fuentes
-    /// en memoria).
+    /// Parses + validates + maps a YAML string (useful for tests and in-memory
+    /// sources).
     pub fn load_str(&self, yaml: &str) -> Result<Template, TemplateError> {
-        let doc: Value = serde_yaml_ng::from_str(yaml)
-            .map_err(|e| TemplateError(format!("YAML inválido: {e}")))?;
+        let doc: Value =
+            serde_yaml_ng::from_str(yaml).map_err(|e| TemplateError(format!("invalid YAML: {e}")))?;
 
-        // Check 1: forma.
+        // Check 1: shape.
         if let Err(error) = self.validator.validate(&doc) {
             return Err(TemplateError(format!(
-                "la plantilla no cumple el schema en `{}`: {}",
+                "the template does not satisfy the schema at `{}`: {}",
                 error.instance_path(),
                 error
             )));
         }
 
-        // Checks 2 y 3: catálogo + invariantes, vía el mapeo.
+        // Checks 2 and 3: catalog + invariants, via the mapping.
         self.map_template(&doc)
     }
 
@@ -57,7 +56,7 @@ impl FsTemplateSource {
         let schema_version = str_field(doc, "schema_version")?;
         let meta_node = doc
             .get("metadata")
-            .ok_or_else(|| TemplateError("falta `metadata`".into()))?;
+            .ok_or_else(|| TemplateError("missing `metadata`".into()))?;
         let metadata = TemplateMetadata {
             game: str_field(meta_node, "game")?,
             version: str_field(meta_node, "version")?,
@@ -68,24 +67,24 @@ impl FsTemplateSource {
         let pages_node = doc
             .get("pages")
             .and_then(Value::as_array)
-            .ok_or_else(|| TemplateError("falta `pages`".into()))?;
+            .ok_or_else(|| TemplateError("missing `pages`".into()))?;
         let mut pages = Vec::with_capacity(pages_node.len());
         for page_node in pages_node {
             let comps = page_node
                 .get("components")
                 .and_then(Value::as_array)
-                .ok_or_else(|| TemplateError("una página no tiene `components`".into()))?;
+                .ok_or_else(|| TemplateError("a page has no `components`".into()))?;
             let components = self.map_components(comps)?;
             pages.push(Page::new(components).map_err(domain_err)?);
         }
 
         let sidebar_node = doc
             .get("sidebar")
-            .ok_or_else(|| TemplateError("falta `sidebar`".into()))?;
+            .ok_or_else(|| TemplateError("missing `sidebar`".into()))?;
         let default_side = match str_field(sidebar_node, "default_side")?.as_str() {
             "left" => SidebarSide::Left,
             "right" => SidebarSide::Right,
-            other => return Err(TemplateError(format!("lado de sidebar inválido: {other}"))),
+            other => return Err(TemplateError(format!("invalid sidebar side: {other}"))),
         };
         let sidebar_comps = sidebar_node
             .get("components")
@@ -109,7 +108,7 @@ impl FsTemplateSource {
         let id = ComponentId::new(str_field(node, "id")?);
         let pos = node
             .get("position")
-            .ok_or_else(|| TemplateError("falta `position`".into()))?;
+            .ok_or_else(|| TemplateError("missing `position`".into()))?;
         let position = ComponentPosition {
             row: u16_field(pos, "row")?,
             col: u16_field(pos, "col")?,
@@ -118,7 +117,7 @@ impl FsTemplateSource {
             label: opt_str(node, "label"),
             icon: opt_str(node, "icon"),
         };
-        // Check 2: la autoridad de legalidad es el dominio.
+        // Check 2: the legality authority is the domain.
         let action_raw = str_field(node, "action")?;
         let action = self.catalog.resolve(&action_raw).map_err(domain_err)?;
 
@@ -134,7 +133,7 @@ impl FsTemplateSource {
 impl TemplateSource for FsTemplateSource {
     fn load(&self, reference: &str) -> Result<Template, TemplateError> {
         let yaml = std::fs::read_to_string(Path::new(reference))
-            .map_err(|e| TemplateError(format!("no se pudo leer `{reference}`: {e}")))?;
+            .map_err(|e| TemplateError(format!("could not read `{reference}`: {e}")))?;
         self.load_str(&yaml)
     }
 }
@@ -147,7 +146,7 @@ fn str_field(node: &Value, key: &str) -> Result<String, TemplateError> {
     node.get(key)
         .and_then(Value::as_str)
         .map(str::to_string)
-        .ok_or_else(|| TemplateError(format!("falta el campo de texto `{key}`")))
+        .ok_or_else(|| TemplateError(format!("missing text field `{key}`")))
 }
 
 fn opt_str(node: &Value, key: &str) -> Option<String> {
@@ -158,7 +157,7 @@ fn u16_field(node: &Value, key: &str) -> Result<u16, TemplateError> {
     node.get(key)
         .and_then(Value::as_u64)
         .and_then(|n| u16::try_from(n).ok())
-        .ok_or_else(|| TemplateError(format!("campo numérico inválido `{key}`")))
+        .ok_or_else(|| TemplateError(format!("invalid numeric field `{key}`")))
 }
 
 #[cfg(test)]
@@ -204,15 +203,15 @@ sidebar:
         let src = FsTemplateSource::new(catalog()).unwrap();
         let err = src.load_str(&bad).unwrap_err();
         assert!(
-            err.0.contains("desconocida"),
-            "esperaba UnknownAction: {}",
+            err.0.contains("unknown action"),
+            "expected UnknownAction: {}",
             err.0
         );
     }
 
     #[test]
     fn rejects_schema_violation() {
-        // Falta `position` en un componente.
+        // Missing `position` in a component.
         let bad = r#"
 schema_version: "1"
 metadata: { game: SC, version: "4.0", author: dev }

@@ -1,5 +1,5 @@
-//! Fakes reutilizables para los tests de aplicación e infra. Detrás de la
-//! feature `testing` para no compilarse en builds de producción.
+//! Reusable fakes for the application and infra tests. Behind the `testing`
+//! feature so they are not compiled into production builds.
 
 use std::cell::RefCell;
 use std::time::Duration;
@@ -12,7 +12,7 @@ use crate::ports::{
     WindowPlacement,
 };
 
-/// `InputSender` que graba los eventos emitidos en orden, sin tocar el SO.
+/// An `InputSender` that records emitted events in order, without touching the OS.
 #[derive(Default)]
 pub struct FakeInputSender {
     pub events: RefCell<Vec<KeyEvent>>,
@@ -35,7 +35,7 @@ impl InputSender for FakeInputSender {
     }
 }
 
-/// `GameKeybindProvider` con una tabla canned y un catálogo fijo.
+/// A `GameKeybindProvider` with a canned table and a fixed catalog.
 pub struct FakeKeybindProvider {
     bindings: Vec<(GameAction, KeyBinding)>,
     catalog: ActionCatalog,
@@ -71,7 +71,7 @@ impl GameKeybindProvider for FakeKeybindProvider {
     }
 }
 
-/// `Clock` que registra las duraciones de `sleep` sin esperar de verdad.
+/// A `Clock` that records `sleep` durations without actually waiting.
 #[derive(Default)]
 pub struct FakeClock {
     pub sleeps: RefCell<Vec<Duration>>,
@@ -93,7 +93,7 @@ impl Clock for FakeClock {
     }
 }
 
-/// `TemplateSource` que devuelve una plantilla en memoria.
+/// A `TemplateSource` that returns an in-memory template.
 pub struct InMemoryTemplateSource {
     template: Template,
 }
@@ -110,7 +110,7 @@ impl TemplateSource for InMemoryTemplateSource {
     }
 }
 
-/// `ConfigStore` en memoria.
+/// An in-memory `ConfigStore`.
 pub struct InMemoryConfigStore {
     prefs: RefCell<Prefs>,
 }
@@ -143,7 +143,7 @@ impl ConfigStore for InMemoryConfigStore {
     }
 }
 
-/// `WindowPlacement` no-op (como el adaptador real de Linux).
+/// A no-op `WindowPlacement` (like the real Linux adapter).
 #[derive(Default)]
 pub struct NoopWindowPlacement;
 

@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://plinth.dev/schema/plinth.template.schema.json",
   "title": "Plinth template",
-  "description": "Contrato declarativo de una plantilla de panel. Fuente de verdad de la forma; las acciones se validan contra el catálogo cerrado del dominio.",
+  "description": "Declarative contract for a panel template. Source of truth for the shape; actions are validated against the domain's closed catalog.",
   "type": "object",
   "required": ["schema_version", "metadata", "pages", "sidebar"],
   "additionalProperties": false,
   "properties": {
     "schema_version": {
       "type": "string",
-      "description": "Versión del esquema con el que se creó la plantilla."
+      "description": "Version of the schema the template was created with."
     },
     "metadata": {
       "type": "object",
@@ -70,7 +70,7 @@
         "action": {
           "type": "string",
           "minLength": 1,
-          "description": "Identificador resoluble por el catálogo: 'app.*' para acciones de app, o un ID semántico de juego."
+          "description": "Identifier resolvable by the catalog: 'app.*' for app actions, or a semantic game ID."
         },
         "label": { "type": "string" },
         "icon": { "type": "string" }

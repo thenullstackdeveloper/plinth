@@ -17,14 +17,14 @@ jobs:
       - name: Install Rust toolchain
         run: rustup component add rustfmt clippy
 
-      - name: Formato
+      - name: Format
         run: cargo fmt --all --check
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets --features plinth-application/testing -- -D warnings
 
-      - name: Tests (excluye los #[ignore], que requieren /dev/uinput)
+      - name: Tests (excludes #[ignore], which require /dev/uinput)
         run: cargo test --workspace --features plinth-application/testing
 
-      - name: Fitness test arquitectónico
+      - name: Architectural fitness test
         run: ./scripts/fitness.sh

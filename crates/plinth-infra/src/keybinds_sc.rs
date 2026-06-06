@@ -1,17 +1,16 @@
-//! Adaptador de keybinds de Star Citizen. **Único módulo que nombra SC.**
+//! Star Citizen keybind adapter. **The only module that names SC.**
 //!
-//! Parte del **XML exportable** (`pp_rebindkeys export all <nombre>` →
-//! `layout_<nombre>_exported.xml`, texto plano), y opcionalmente del
-//! `actionmaps.xml` del perfil del usuario. Esto desactiva el mayor riesgo del
-//! adaptador: parsear el `Data.p4k` binario (defaults) queda **fuera de
-//! alcance** del MVP.
+//! Works from the **exportable XML** (`pp_rebindkeys export all <name>` →
+//! `layout_<name>_exported.xml`, plain text), and optionally from the user
+//! profile's `actionmaps.xml`. This retires the adapter's biggest risk: parsing
+//! the binary `Data.p4k` (defaults) is **out of scope** for the MVP.
 //!
-//! **Limitación conocida (MVP):** solo se mapean bindings de **teclado de una
-//! sola tecla** (`kb1_<tecla>`). Los acordes con modificadores (`kb1_lshift+t`)
-//! y las entradas de joystick/ratón (`js1_*`, `mo1_*`) se registran en el
-//! catálogo (la acción es "conocida") pero no producen binding emitible → la
-//! resolución devuelve `NotBound`. El modelo de `KeySequence` del dominio no
-//! expresa pulsaciones simultáneas; soportar acordes es una mejora posterior.
+//! **Known limitation (MVP):** only **single keyboard key** bindings
+//! (`kb1_<key>`) are mapped. Modifier chords (`kb1_lshift+t`) and joystick/mouse
+//! entries (`js1_*`, `mo1_*`) are registered in the catalog (the action is
+//! "known") but produce no emittable binding → resolution returns `NotBound`.
+//! The domain's `KeySequence` model does not express simultaneous presses;
+//! supporting chords is a later improvement.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -20,16 +19,16 @@ use plinth_application::{GameKeybindProvider, ProviderError, ResolveError};
 use plinth_domain::{ActionCatalog, ActionId, GameAction, KeyBinding, KeySequence, ScanCode};
 use serde::Deserialize;
 
-/// Error de parseo del XML de SC.
+/// Parse error of the SC XML.
 #[derive(Debug, thiserror::Error)]
 pub enum ScParseError {
-    #[error("error leyendo el XML de keybinds: {0}")]
+    #[error("error reading the keybinds XML: {0}")]
     Io(String),
-    #[error("XML de keybinds malformado: {0}")]
+    #[error("malformed keybinds XML: {0}")]
     Xml(String),
 }
 
-// --- Estructura del XML exportado de SC ---------------------------------
+// --- Structure of the exported SC XML -----------------------------------
 
 #[derive(Debug, Deserialize)]
 struct ActionMapsDoc {
@@ -57,14 +56,14 @@ struct RebindNode {
     input: String,
 }
 
-/// Resultado del parseo: el catálogo de acciones conocidas + el mapa de las
-/// que tienen un binding de teclado emitible.
+/// Result of parsing: the catalog of known actions + the map of those that have
+/// an emittable keyboard binding.
 pub struct ParsedKeybinds {
     pub catalog: ActionCatalog,
     pub bindings: BTreeMap<ActionId, KeyBinding>,
 }
 
-/// Parsea el contenido de un XML exportado de SC.
+/// Parses the contents of an exported SC XML.
 pub fn parse_export(xml: &str) -> Result<ParsedKeybinds, ScParseError> {
     let doc: ActionMapsDoc =
         quick_xml::de::from_str(xml).map_err(|e| ScParseError::Xml(e.to_string()))?;
@@ -77,7 +76,7 @@ pub fn parse_export(xml: &str) -> Result<ParsedKeybinds, ScParseError> {
             let id = ActionId::new(&action.name);
             catalog_ids.insert(id.clone());
 
-            // Toma el primer rebind que sepamos representar.
+            // Take the first rebind we know how to represent.
             for rebind in &action.rebinds {
                 if let Some(seq) = input_to_sequence(&rebind.input) {
                     bindings.entry(id.clone()).or_insert(seq);
@@ -93,22 +92,22 @@ pub fn parse_export(xml: &str) -> Result<ParsedKeybinds, ScParseError> {
     })
 }
 
-/// Convierte el atributo `input` de SC a una `KeySequence` emitible, o `None`
-/// si no es una tecla de teclado única que sepamos mapear.
+/// Converts SC's `input` attribute into an emittable `KeySequence`, or `None` if
+/// it is not a single keyboard key we know how to map.
 fn input_to_sequence(input: &str) -> Option<KeySequence> {
-    let token = input.strip_prefix("kb1_")?; // solo teclado
+    let token = input.strip_prefix("kb1_")?; // keyboard only
     if token.is_empty() || token.contains('+') {
-        return None; // acordes con modificadores: no soportados en MVP
+        return None; // modifier chords: not supported in the MVP
     }
     let code = token_to_keycode(token)?;
     Some(KeySequence::single_press(ScanCode::new(code)))
 }
 
-/// Tabla token-de-SC → código de tecla de evdev (constantes de
-/// `linux/input-event-codes.h`, estables a nivel de kernel).
+/// SC token → evdev key code table (constants from
+/// `linux/input-event-codes.h`, stable at the kernel level).
 fn token_to_keycode(token: &str) -> Option<u16> {
     let code = match token {
-        // Letras
+        // Letters
         "a" => 30,
         "b" => 48,
         "c" => 46,
@@ -135,7 +134,7 @@ fn token_to_keycode(token: &str) -> Option<u16> {
         "x" => 45,
         "y" => 21,
         "z" => 44,
-        // Dígitos de la fila superior
+        // Top-row digits
         "0" => 11,
         "1" => 2,
         "2" => 3,
@@ -146,7 +145,7 @@ fn token_to_keycode(token: &str) -> Option<u16> {
         "7" => 8,
         "8" => 9,
         "9" => 10,
-        // Teclas de control / espaciado
+        // Control / spacing keys
         "escape" => 1,
         "minus" => 12,
         "equals" => 13,
@@ -170,7 +169,7 @@ fn token_to_keycode(token: &str) -> Option<u16> {
         "capslock" => 58,
         "ralt" => 100,
         "rctrl" => 97,
-        // Función
+        // Function
         "f1" => 59,
         "f2" => 60,
         "f3" => 61,
@@ -183,7 +182,7 @@ fn token_to_keycode(token: &str) -> Option<u16> {
         "f10" => 68,
         "f11" => 87,
         "f12" => 88,
-        // Bloque de navegación
+        // Navigation block
         "home" => 102,
         "up" => 103,
         "pgup" => 104,
@@ -194,7 +193,7 @@ fn token_to_keycode(token: &str) -> Option<u16> {
         "pgdn" => 109,
         "insert" => 110,
         "delete" => 111,
-        // Teclado numérico
+        // Numpad
         "np_0" => 82,
         "np_1" => 79,
         "np_2" => 80,
@@ -216,18 +215,18 @@ fn token_to_keycode(token: &str) -> Option<u16> {
     Some(code)
 }
 
-// --- El proveedor --------------------------------------------------------
+// --- The provider --------------------------------------------------------
 
-/// `GameKeybindProvider` para Star Citizen. Mantiene el origen para poder
-/// `refresh()` releyendo el fichero exportado tras un cambio de keybinds.
+/// `GameKeybindProvider` for Star Citizen. Keeps the source so it can `refresh()`
+/// by re-reading the exported file after a keybind change.
 pub struct ScKeybindProvider {
     parsed: ParsedKeybinds,
     source_path: Option<PathBuf>,
 }
 
 impl ScKeybindProvider {
-    /// Construye el proveedor desde el contenido de un export (sin fichero;
-    /// `refresh()` será no-op).
+    /// Builds the provider from the contents of an export (no file; `refresh()`
+    /// will be a no-op).
     pub fn from_export_str(xml: &str) -> Result<Self, ScParseError> {
         Ok(Self {
             parsed: parse_export(xml)?,
@@ -235,7 +234,7 @@ impl ScKeybindProvider {
         })
     }
 
-    /// Construye desde un fichero exportado; `refresh()` lo relee.
+    /// Builds from an exported file; `refresh()` re-reads it.
     pub fn from_export_file(path: PathBuf) -> Result<Self, ScParseError> {
         let xml = std::fs::read_to_string(&path).map_err(|e| ScParseError::Io(e.to_string()))?;
         Ok(Self {
@@ -308,10 +307,10 @@ mod tests {
     #[test]
     fn catalog_includes_all_actions_even_unrepresentable() {
         let parsed = parse_export(SAMPLE).unwrap();
-        // El acorde y el binding de joystick están en el catálogo...
+        // The chord and the joystick binding are in the catalog...
         assert!(parsed.catalog.contains(&ActionId::new("v_target_cycle")));
         assert!(parsed.catalog.contains(&ActionId::new("v_flightready")));
-        // ...pero no tienen binding emitible.
+        // ...but they have no emittable binding.
         assert!(!parsed
             .bindings
             .contains_key(&ActionId::new("v_target_cycle")));

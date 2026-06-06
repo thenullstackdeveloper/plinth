@@ -1,5 +1,5 @@
-//! `plinth-infra` — adaptadores que tocan el mundo. Implementan los puertos
-//! definidos en `plinth-application`.
+//! `plinth-infra` — adapters that touch the world. They implement the ports
+//! defined in `plinth-application`.
 
 pub mod clock;
 pub mod config_fs;

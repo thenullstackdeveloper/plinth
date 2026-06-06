@@ -1,18 +1,18 @@
-//! Objetos de valor relacionados con teclas y secuencias.
+//! Value objects related to keys and sequences.
 //!
-//! El dominio razona en términos de **scancodes físicos** (la tecla de la fila
-//! superior izquierda, no la letra que produce): el compositor aplica el layout
-//! por encima. Los juegos suelen vincular por tecla física, así que esto encaja
-//! (ver `docs/plinth-fase0-analisis.md` §2). Aquí solo guardamos el número del
-//! código; traducir el token de cada juego → `ScanCode` es trabajo de la capa
-//! de infraestructura, no del dominio.
+//! The domain reasons in terms of **physical scancodes** (the key in the
+//! top-left row, not the letter it produces): the compositor applies the layout
+//! on top. Games usually bind by physical key, so this fits (see
+//! `docs/input-linux.md`). Here we only store the code number; translating each
+//! game's token → `ScanCode` is the infrastructure layer's job, not the
+//! domain's.
 
 use std::time::Duration;
 
 use crate::error::DomainError;
 
-/// Un scancode físico (p. ej. la tecla "A" == 30). Newtype opaco: el dominio no
-/// interpreta el valor, solo lo transporta hasta la capa de input.
+/// A physical scancode (e.g. the "A" key == 30). An opaque newtype: the domain
+/// does not interpret the value, it only carries it to the input layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ScanCode(pub u16);
 
@@ -26,19 +26,19 @@ impl ScanCode {
     }
 }
 
-/// Cómo se acciona una tecla dentro de una secuencia.
+/// How a key is actuated within a sequence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyStepKind {
-    /// Pulsar y soltar inmediatamente.
+    /// Press and release immediately.
     Press,
-    /// Mantener pulsada durante una duración y soltar.
+    /// Hold down for a duration and release.
     Hold(Duration),
-    /// Alternar: el estado lo lleva el `RuntimeState`; la capa de aplicación
-    /// decide si emite pulsación o no según el estado previo.
+    /// Toggle: the state is held by `RuntimeState`; the application layer decides
+    /// whether to emit a press based on the previous state.
     Toggle,
 }
 
-/// Un paso de una secuencia: una tecla con su modo de accionamiento.
+/// A step of a sequence: a key with its actuation mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyStep {
     pub code: ScanCode,
@@ -68,8 +68,8 @@ impl KeyStep {
     }
 }
 
-/// Una secuencia de teclas no vacía. Constructor inteligente: una secuencia
-/// vacía es inconstruible.
+/// A non-empty key sequence. Smart constructor: an empty sequence is
+/// unconstructable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeySequence(Vec<KeyStep>);
 
@@ -81,7 +81,7 @@ impl KeySequence {
         Ok(Self(steps))
     }
 
-    /// Atajo para la secuencia de una sola pulsación (el caso más común).
+    /// Shortcut for the single-press sequence (the most common case).
     pub fn single_press(code: ScanCode) -> Self {
         Self(vec![KeyStep::press(code)])
     }
@@ -91,12 +91,11 @@ impl KeySequence {
     }
 }
 
-/// Una tecla resuelta a partir de la configuración real del juego: el
-/// resultado de `GameKeybindProvider::resolve`. Es una `KeySequence` ya lista
-/// para emitirse.
+/// A key resolved from the game's real configuration: the result of
+/// `GameKeybindProvider::resolve`. It is a `KeySequence` already ready to emit.
 pub type KeyBinding = KeySequence;
 
-/// Lado en el que vive la barra lateral. Para diestros/zurdos.
+/// The side the sidebar lives on. For right-/left-handed use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SidebarSide {
     Left,
@@ -112,20 +111,20 @@ impl SidebarSide {
     }
 }
 
-/// Versión del esquema de plantilla con el que se creó. Trazabilidad de la
-/// deriva de keybinds entre parches.
+/// Version of the template schema the template was created with. Traceability of
+/// keybind drift across patches.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaVersion(pub String);
 
-/// Posición de un componente dentro de su página (rejilla lógica).
+/// Position of a component within its page (logical grid).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentPosition {
     pub row: u16,
     pub col: u16,
 }
 
-/// Propiedades puramente visuales de un componente (etiqueta, icono…). El
-/// dominio no las interpreta; las transporta hacia la UI vía el DTO.
+/// Purely visual properties of a component (label, icon…). The domain does not
+/// interpret them; it carries them to the UI via the DTO.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VisualProps {
     pub label: Option<String>,
