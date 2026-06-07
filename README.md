@@ -44,6 +44,13 @@ cargo test -p plinth-infra -- --ignored                        # real uinput tes
 ./scripts/fitness.sh                                           # architectural fitness test
 ```
 
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/). Enable
+the local hook that enforces it (once per clone):
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
