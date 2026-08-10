@@ -53,6 +53,7 @@ git config core.hooksPath .githooks
 
 ## Documentation
 
+- [Project status and handoff](docs/status.md)
 - [Architecture](docs/architecture.md)
 - [Roadmap](docs/roadmap.md)
 - [Input on Linux (uinput, focus, anti-cheat)](docs/input-linux.md)
