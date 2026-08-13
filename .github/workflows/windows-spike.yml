@@ -1,0 +1,53 @@
+name: Windows spike build
+
+# Builds the Phase 0 focus-test executable on a real Windows runner and publishes
+# it as a downloadable artifact, so it can be tested on a Windows gaming machine
+# without installing a Rust toolchain there.
+
+on:
+  push:
+    branches: [main, feat/phase0-spike]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/windows-spike.yml"
+  workflow_dispatch: # lets you trigger a build by hand from the Actions tab
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-spike-${{ hashFiles('Cargo.lock') }}
+
+      - name: Check the Windows input adapter compiles
+        run: cargo check -p plinth-infra
+
+      - name: Run the adapter unit tests
+        run: cargo test -p plinth-infra --lib
+
+      - name: Build the spike executable
+        run: cargo build --release -p plinth-infra --example spike_win
+
+      - name: Upload the executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: plinth-spike-win
+          path: target/release/examples/spike_win.exe
+          retention-days: 30
+          if-no-files-found: error
