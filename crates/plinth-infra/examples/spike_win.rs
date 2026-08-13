@@ -40,8 +40,8 @@ mod windows_spike {
     use windows::core::w;
     use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows::Win32::Graphics::Gdi::{
-        BeginPaint, CreateSolidBrush, DrawTextW, EndPaint, InvalidateRect, SetBkMode,
-        SetTextColor, DT_CENTER, DT_WORDBREAK, PAINTSTRUCT, TRANSPARENT,
+        BeginPaint, CreateSolidBrush, DrawTextW, EndPaint, InvalidateRect, SetBkMode, SetTextColor,
+        DT_CENTER, DT_WORDBREAK, PAINTSTRUCT, TRANSPARENT,
     };
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::{

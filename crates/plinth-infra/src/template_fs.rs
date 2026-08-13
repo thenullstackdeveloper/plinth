@@ -36,8 +36,8 @@ impl FsTemplateSource {
     /// Parses + validates + maps a YAML string (useful for tests and in-memory
     /// sources).
     pub fn load_str(&self, yaml: &str) -> Result<Template, TemplateError> {
-        let doc: Value =
-            serde_yaml_ng::from_str(yaml).map_err(|e| TemplateError(format!("invalid YAML: {e}")))?;
+        let doc: Value = serde_yaml_ng::from_str(yaml)
+            .map_err(|e| TemplateError(format!("invalid YAML: {e}")))?;
 
         // Check 1: shape.
         if let Err(error) = self.validator.validate(&doc) {

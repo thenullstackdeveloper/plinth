@@ -97,8 +97,5 @@ fn app_button_navigates_without_input() {
     .unwrap();
 
     assert_eq!(state.current_page(), 0);
-    assert!(
-        input.recorded().is_empty(),
-        "an app button emits no keys"
-    );
+    assert!(input.recorded().is_empty(), "an app button emits no keys");
 }
