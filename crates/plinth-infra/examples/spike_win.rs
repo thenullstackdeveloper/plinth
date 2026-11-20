@@ -10,11 +10,11 @@
 //!      `hyprctl activewindow` from the Linux plan;
 //!   2. emits one key press through the real `WindowsInputSender` adapter.
 //!
-//! If the reported foreground window is still Star Citizen *and* the key lands
+//! If the reported foreground window is still the game *and* the key lands
 //! in the game, the critical risk of the project is retired.
 //!
 //! Usage: spike_win.exe [keycode] [x] [y] [width] [height]
-//!   keycode defaults to 30 (KEY_A). Use 59 for F1, 38 for L.
+//!   keycode defaults to 30 (KEY_A). Use 50 for M (WoW world map), 59 for F1, 38 for L.
 //!   x/y let you place the panel on a second monitor without dragging it.
 
 #[cfg(target_os = "windows")]

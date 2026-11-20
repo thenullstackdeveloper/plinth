@@ -1,9 +1,9 @@
 # Project status and handoff
 
 Snapshot of where Plinth stands and how to continue. Development happens on a Mac;
-Star Citizen testing happens on a Windows machine.
+game testing happens on a Windows machine.
 
-**Last updated:** 2026-08-13
+**Last updated:** 2026-11-20
 
 ## 1. Where the project is
 
@@ -14,7 +14,7 @@ Star Citizen testing happens on a Windows machine.
 | SC keybind adapter (`keybinds_sc`) | Done for single-key bindings; chords/joystick unsupported (known limitation) |
 | Linux input adapter (`input_uinput`) | Done, validated on real hardware |
 | **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, not yet validated against the game |
-| **Windows focus spike (`spike_win.exe`)** | **Built by CI, waiting to be run against Star Citizen** |
+| **Windows focus spike (`spike_win.exe`)** | **Built by CI, waiting to be run against WoW** |
 | `plinth-tauri` (composition root + window) | Not started |
 | React frontend | Not started |
 
@@ -26,7 +26,8 @@ Current branch: `feat/phase0-spike`.
 |---|---|---|
 | N1 virtual keyboard emits | Linux | **PASS** — event seen by the compositor in `wev` |
 | N2 key reaches a native app | Linux | **PASS** — delivered to the focused window, across workspaces |
-| N4/N5 **focus test (R1)** | Windows | **PENDING — this is the decisive test** |
+| N4 **focus test (R1)** | Windows | **PENDING — run against WoW on Windows (phase 0)** — the decisive test |
+| N5 focus test with the real window | Windows | Phase 1, with the real Tauri window |
 
 **What this means:** the *delivery* risk is retired. The *focus* risk (R1) — can the panel be
 clicked without stealing keyboard focus from the game? — is still unproven, and the whole
@@ -55,25 +56,24 @@ internet. It is our own build; "More info → Run anyway".
 
 ### The test
 
-1. On the Windows machine, put `USER.cfg` containing `r_WindowMode = 1` in
-   `C:\Program Files\Roberts Space Industries\StarCitizen\LIVE\` so SC runs borderless.
-2. Launch Star Citizen and get in-game.
+1. On the Windows machine, set WoW's display mode to **Windowed (Fullscreen)**
+   (System → Graphics) so the game runs borderless.
+2. Launch World of Warcraft and get in-game.
 3. Run the executable, placing the panel on a **second monitor** (arguments are
    `keycode x y width height`):
    ```
-   spike_win.exe 59 2200 300
+   spike_win.exe 50 2200 300
    ```
-   `59` is F1 (mobiGlas). `38` is L (ship lights), `30` is A. Pick a **visible and harmless**
-   action — never `v_eject`.
-4. Focus Star Citizen, then **click the spike window**.
+   `50` is M (world map). Pick a **visible and harmless** action.
+4. Focus WoW, then **click the spike window**.
 
 **What to look for** — the window prints, on itself and in the console:
 
 ```
-focus: <title of the window holding focus>  |  sent scancode 59
+focus: <title of the window holding focus>  |  sent scancode 50
 ```
 
-- **PASS** = focus still reports Star Citizen **and** the action fires in game.
+- **PASS** = focus still reports World of Warcraft **and** the world map opens.
 - **FAIL** = focus reports `Plinth`, or nothing happens in game.
 
 The executable reports the foreground window itself (`GetForegroundWindow`), which replaces
@@ -103,7 +103,7 @@ identical, so they pass through unchanged. The extended cluster (arrows, navigat
 enter, right-hand modifiers) is E0-prefixed on Windows with different numbering and is **not
 translated yet** — `input_windows` returns an error rather than silently sending a wrong key.
 
-**Star Citizen on Windows is native**, so the Wine/Proton layer disappears from the spike
+**Games run natively on Windows**, so the Wine/Proton layer disappears from the spike
 entirely, and `WS_EX_NOACTIVATE` is a documented Win32 mechanism rather than a compositor
 quirk — R1 may well be easier here than on Linux.
 
@@ -138,7 +138,7 @@ cargo clippy -p plinth-infra --all-targets --target x86_64-pc-windows-msvc -- -D
 **Not carried by the repo:** the `.scratch/` convention for throwaway notes lives in a
 *global* gitignore (`~/.config/git/ignore`); re-create it if you want it on this machine.
 
-## 6. Star Citizen paths on Windows
+## 6. Star Citizen paths on Windows (phase 5)
 
 - Game dir: `C:\Program Files\Roberts Space Industries\StarCitizen\LIVE`
 - Borderless: `<LIVE>\USER.cfg` with `r_WindowMode = 1`
@@ -147,27 +147,23 @@ cargo clippy -p plinth-infra --all-targets --target x86_64-pc-windows-msvc -- -D
   (in game: `pp_rebindkeys export all <name>`)
 
 **No keybinds have been exported yet** — `keybinds_sc` has never been fed real data. That
-export is the first prerequisite for Phase 3 templates.
+export is the first prerequisite for phase 5 templates.
 
 ## 7. Next steps
 
-1. **Run the focus test** (section 3). Everything else waits on the result.
-2. If it passes: build minimal `plinth-tauri` (borderless window + one button wired to
-   `execute_action`) and confirm the same behaviour with the real app window.
-3. If it fails: investigate whether Tauri can apply `WS_EX_NOACTIVATE` to its window, or
-   fall back to keeping the panel on a separate always-on-top window that never activates.
-4. Then Phase 2 proper: React UI with swipe pages, sidebar and lock.
-5. Export real SC keybinds and feed `keybinds_sc` (prerequisite for real templates).
+The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 
-## 8. Non-negotiable rules (any platform)
+0. **Run the focus test** against WoW (section 3). Everything else waits on the result.
+1. Minimal `plinth-tauri`: a borderless, always-on-top, non-activating window with one button
+   wired to `execute_action`; repeat the focus test with the real window.
+2. UI: swipe pages, left/right sidebar, lock.
+3. WoW: literal keys and macros in templates, 1–2 real templates, manual game selection.
+4. Packaging, docs, license, public repo — end of MVP.
+5. Star Citizen as second game: export real keybinds and feed `keybinds_sc`, live data.
+6. Linux: uinput + Hyprland, reusing the validated work.
 
-- Plinth **only injects input**. Never read or write the game's memory or files. The one
-  exception is `USER.cfg`, a supported user setting.
-- Future "live data" comes only from safe sources (the game's own `Game.log`, official APIs)
-  — never memory reads.
-- Templates may only describe actions from the closed catalog; `Action` has no raw/escape
-  variant, so arbitrary commands are unrepresentable. Schema validation is fully offline —
-  the HTTP `$ref` resolvers are disabled so a community template can never trigger a network
-  request.
-- Everything inside the repo is written in English; commits follow Conventional Commits
-  (enforced by `.githooks/commit-msg`).
+## 8. Non-negotiable rules
+
+See [`roadmap.md`](roadmap.md#non-negotiable-rules). Everything inside the repo is written in
+English, except the planning documents under `docs/flow/`; commits follow Conventional Commits
+(enforced by `.githooks/commit-msg`).

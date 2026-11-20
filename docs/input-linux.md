@@ -1,5 +1,7 @@
 # Input delivery on Linux (uinput, focus, anti-cheat)
 
+> Linux is phase 6 of the [roadmap](roadmap.md#phases). This document keeps the Linux work validated on 2026-06-07 for then.
+
 How Plinth delivers keystrokes to the game on Linux, and why. This is the technical heart of
 the project: the risk and the value concentrate here. It documents how things actually work;
 the exploratory analysis that led to these conclusions is archived outside the repo.

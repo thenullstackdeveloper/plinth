@@ -4,23 +4,23 @@ Desktop control panel for PC games on a **touchscreen** (an *ultrawide* unit sit
 the monitor). Buttons and actions are configurable through **declarative templates**,
 *game-aware*, and free for the community.
 
-> **Status:** MVP in progress. The hexagonal core (domain + use cases + adapters) is
-> implemented and tested; the Tauri/React layer and the Phase 0 input-validation spike (on
-> the developer's machine) are still pending.
+> **Status:** MVP in progress, Windows first. The hexagonal core (domain + use cases +
+> adapters) is implemented and tested; the Tauri/React layer and the Phase 0 focus spike
+> (on Windows, against World of Warcraft) are still pending.
 
 ## Idea
 
 Similar in spirit to a Stream Deck, but built for gaming and deliberately differentiated:
 tablet-style swipeable multi-page navigation, a configurable sidebar for right-/left-handed
-use with a lock that prevents accidental page changes, and templates bound to *game actions*
-(not physical keys), resolved from the game's real keybind configuration. First vertical:
-**Star Citizen**.
+use with a lock that prevents accidental page changes, and templates that bind buttons to
+*game actions* resolved from the game's real keybind configuration, or to literal keys and
+macros. First game: **World of Warcraft**, then Star Citizen.
 
 ## Stack
 
 - **Core:** Rust
 - **UI:** Tauri + React + TypeScript (Framer Motion)
-- **Input delivery (Linux):** uinput, via the `evdev` crate
+- **Input delivery:** Windows `SendInput` first, Linux uinput (via the `evdev` crate) later
 
 ## Architecture
 

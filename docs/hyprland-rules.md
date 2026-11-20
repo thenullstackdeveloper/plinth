@@ -1,5 +1,7 @@
 # Hyprland rules for the Plinth panel
 
+> Linux is phase 6 of the [roadmap](roadmap.md#phases). This document keeps the Linux work validated on 2026-06-07 for then.
+
 > On Wayland, Tauri does **not** control window position, "always-on-top", or "no-focus" (see
 > `docs/input-linux.md`). Those three are delegated to compositor rules. This document is the
 > panel's Linux/Hyprland setup requirement. The `window_placement` adapter in `plinth-infra` is
