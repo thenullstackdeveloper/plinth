@@ -1,0 +1,14 @@
+schema_version: "1"
+metadata:
+  game: "World of Warcraft"
+  version: "phase-1"
+  author: "thenullstackdeveloper"
+pages:
+  - components:
+      - id: world_map
+        position: { row: 0, col: 0 }
+        action: "wow.world_map"
+        label: "World map"
+sidebar:
+  default_side: right
+  components: []

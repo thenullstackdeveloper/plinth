@@ -1,0 +1,31 @@
+[package]
+name = "plinth-tauri"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "plinth_tauri_lib"
+
+[[bin]]
+name = "plinth-tauri"
+path = "src/main.rs"
+
+[features]
+# Production build: embeds `ui/dist` instead of loading the dev server.
+custom-protocol = ["tauri/custom-protocol"]
+
+[dependencies]
+plinth-domain.workspace = true
+plinth-application.workspace = true
+plinth-infra.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tauri.workspace = true
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dev-dependencies]
+plinth-application = { workspace = true, features = ["testing"] }
