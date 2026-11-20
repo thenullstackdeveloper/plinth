@@ -13,8 +13,8 @@ game testing happens on a Windows machine.
 | Template contract (`schema/plinth.template.schema.json`) | Done |
 | SC keybind adapter (`keybinds_sc`) | Done for single-key bindings; chords/joystick unsupported (known limitation) |
 | Linux input adapter (`input_uinput`) | Done, validated on real hardware |
-| **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, not yet validated against the game |
-| **Windows focus spike (`spike_win.exe`)** | **Built by CI, waiting to be run against WoW** |
+| **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, validated against WoW (2026-11-20) |
+| **Windows focus spike (`spike_win.exe`)** | **Run against WoW: PASS** (2026-11-20) |
 | `plinth-tauri` (composition root + window) | Not started |
 | React frontend | Not started |
 
@@ -26,12 +26,19 @@ Current branch: `feat/phase0-spike`.
 |---|---|---|
 | N1 virtual keyboard emits | Linux | **PASS** — event seen by the compositor in `wev` |
 | N2 key reaches a native app | Linux | **PASS** — delivered to the focused window, across workspaces |
-| N4 **focus test (R1)** | Windows | **PENDING — run against WoW on Windows (phase 0)** — the decisive test |
+| N4 **focus test (R1)** | Windows | **PASS** (2026-11-20) — WoW kept focus while the spike window was clicked, during movement; `M` opened the world map |
 | N5 focus test with the real window | Windows | Phase 1, with the real Tauri window |
 
-**What this means:** the *delivery* risk is retired. The *focus* risk (R1) — can the panel be
-clicked without stealing keyboard focus from the game? — is still unproven, and the whole
-project depends on it.
+Conditions of the N4 run: a single monitor (the spike window floated over WoW in Windowed
+(Fullscreen) mode), a **mouse click** rather than a touch, and the spike's default position.
+A first run with the default key (`30`, `A`) showed no visible effect: an instant press and
+release barely moves the character, so `M` (`50`) is the key to judge by.
+
+**What this means:** both risks are retired on Windows. The *delivery* risk was already retired,
+and the *focus* risk (R1) — can the panel be clicked without stealing keyboard focus from the
+game? — is retired with `WS_EX_NOACTIVATE`. Still to confirm: the same behaviour with a real
+**touch** on the touchscreen (Windows handles touch input as its own event before turning it into
+a click), and with the real Tauri window (N5, phase 1).
 
 ## 3. Running the focus test on Windows
 
@@ -153,8 +160,8 @@ export is the first prerequisite for phase 5 templates.
 
 The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 
-0. **Run the focus test** against WoW (section 3). Everything else waits on the result.
-1. Minimal `plinth-tauri`: a borderless, always-on-top, non-activating window with one button
+0. ~~Run the focus test against WoW~~ — **done, PASS** (2026-11-20, section 2).
+1. **Next:** minimal `plinth-tauri`: a borderless, always-on-top, non-activating window with one button
    wired to `execute_action`; repeat the focus test with the real window.
 2. UI: swipe pages, left/right sidebar, lock.
 3. WoW: literal keys and macros in templates, 1–2 real templates, manual game selection.
