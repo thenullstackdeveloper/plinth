@@ -15,8 +15,8 @@ game testing happens on a Windows machine.
 | Linux input adapter (`input_uinput`) | Done, validated on real hardware |
 | **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, validated against WoW (2026-11-20) |
 | **Windows focus spike (`spike_win.exe`)** | **Run against WoW: PASS** (2026-11-20) |
-| `plinth-tauri` (composition root + window) | Not started |
-| React frontend | Not started |
+| `plinth-tauri` (composition root + window) | Minimal panel built (phase 1), focus test pending on Windows |
+| React frontend (`ui/`) | Minimal: one button per component of the current page, Vitest suite |
 
 Current branch: `feat/phase0-spike`.
 
@@ -27,7 +27,7 @@ Current branch: `feat/phase0-spike`.
 | N1 virtual keyboard emits | Linux | **PASS** — event seen by the compositor in `wev` |
 | N2 key reaches a native app | Linux | **PASS** — delivered to the focused window, across workspaces |
 | N4 **focus test (R1)** | Windows | **PASS** (2026-11-20) — WoW kept focus while the spike window was clicked, during movement; `M` opened the world map |
-| N5 focus test with the real window | Windows | Phase 1, with the real Tauri window |
+| N5 focus test with the real window | Windows | **PENDING** — run `plinth-tauri.exe` against WoW |
 
 Conditions of the N4 run: a single monitor (the spike window floated over WoW in Windowed
 (Fullscreen) mode), a **mouse click** rather than a touch, and the spike's default position.

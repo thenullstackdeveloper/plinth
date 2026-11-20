@@ -42,6 +42,22 @@ An infrastructure crate (`evdev`, `serde`…) used from the core **won't compile
 cargo test --workspace --features plinth-application/testing   # tests (CI-safe)
 cargo test -p plinth-infra -- --ignored                        # real uinput test (needs /dev/uinput)
 ./scripts/fitness.sh                                           # architectural fitness test
+pnpm --dir ui test                                             # frontend tests (Vitest)
+```
+
+Run the panel in development (macOS: keys are only logged, there is no input adapter):
+
+```bash
+pnpm --dir ui install
+pnpm --dir ui dev                # terminal 1: Vite dev server on http://localhost:5173
+cargo run -p plinth-tauri        # terminal 2: the panel window
+```
+
+Production build (embeds `ui/dist` in the binary; on Windows it produces `plinth-tauri.exe`):
+
+```bash
+pnpm --dir ui build
+cargo build --release -p plinth-tauri --features custom-protocol
 ```
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org/). Enable
