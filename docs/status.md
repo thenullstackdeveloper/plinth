@@ -1,7 +1,7 @@
 # Project status and handoff
 
-Snapshot of where Plinth stands and how to continue. Development happens on a Mac;
-game testing happens on a Windows machine.
+Snapshot of where Plinth stands and how to continue. Development and game testing happen on
+the Windows machine (until phase 1 development happened on a Mac).
 
 **Last updated:** 2026-11-20
 
@@ -9,16 +9,16 @@ game testing happens on a Windows machine.
 
 | Area | State |
 |---|---|
-| Hexagonal core (`plinth-domain`, `plinth-application`, `plinth-infra`) | **Done, 31 tests green**, fitness test passing |
+| Hexagonal core (`plinth-domain`, `plinth-application`, `plinth-infra`) | **Done**, fitness test passing (workspace: 40 Rust tests green on macOS) |
 | Template contract (`schema/plinth.template.schema.json`) | Done |
 | SC keybind adapter (`keybinds_sc`) | Done for single-key bindings; chords/joystick unsupported (known limitation) |
 | Linux input adapter (`input_uinput`) | Done, validated on real hardware |
 | **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, validated against WoW (2026-11-20) |
 | **Windows focus spike (`spike_win.exe`)** | **Run against WoW: PASS** (2026-11-20) |
-| `plinth-tauri` (composition root + window) | Minimal panel built (phase 1), focus test pending on Windows |
-| React frontend (`ui/`) | Minimal: one button per component of the current page, Vitest suite |
+| **`plinth-tauri` (composition root + window)** | **Minimal panel (phase 1): focus test with the real window PASS** (2026-11-20) |
+| React frontend (`ui/`) | Minimal: one button per component of the current page, 4 Vitest tests green |
 
-Current branch: `feat/phase0-spike`.
+Current branch: `feat/tauri-panel` (contains all the work so far; `main` is behind and nothing has been merged into it yet).
 
 ## 2. Phase 0 spike — results so far
 
@@ -27,7 +27,7 @@ Current branch: `feat/phase0-spike`.
 | N1 virtual keyboard emits | Linux | **PASS** — event seen by the compositor in `wev` |
 | N2 key reaches a native app | Linux | **PASS** — delivered to the focused window, across workspaces |
 | N4 **focus test (R1)** | Windows | **PASS** (2026-11-20) — WoW kept focus while the spike window was clicked, during movement; `M` opened the world map |
-| N5 focus test with the real window | Windows | **PENDING** — run `plinth-tauri.exe` against WoW |
+| N5 focus test with the real window | Windows | **PASS** (2026-11-20) — WoW kept focus while `World map` was clicked in `plinth-tauri.exe`, during movement; the map opened |
 
 Conditions of the N4 run: a single monitor (the spike window floated over WoW in Windowed
 (Fullscreen) mode), a **mouse click** rather than a touch, and the spike's default position.
@@ -36,9 +36,9 @@ release barely moves the character, so `M` (`50`) is the key to judge by.
 
 **What this means:** both risks are retired on Windows. The *delivery* risk was already retired,
 and the *focus* risk (R1) — can the panel be clicked without stealing keyboard focus from the
-game? — is retired with `WS_EX_NOACTIVATE`. Still to confirm: the same behaviour with a real
-**touch** on the touchscreen (Windows handles touch input as its own event before turning it into
-a click), and with the real Tauri window (N5, phase 1).
+game? — is retired with `WS_EX_NOACTIVATE`, first with the Win32 spike (N4) and then with the
+real Tauri + WebView2 window (N5). Still to confirm: the same behaviour with a real **touch** on
+the touchscreen (Windows handles touch input as its own event before turning it into a click).
 
 ## 3. Running the focus test on Windows
 
@@ -119,7 +119,7 @@ quirk — R1 may well be easier here than on Linux.
 ```bash
 git clone git@github.com:thenullstackdeveloper/plinth.git
 cd plinth
-git switch feat/phase0-spike
+git switch feat/tauri-panel
 
 # core.hooksPath is local and NOT inherited by a clone
 git config core.hooksPath .githooks
@@ -127,10 +127,16 @@ git config user.name  "thenullstackdeveloper"
 git config user.email "thenullstackdeveloper@users.noreply.github.com"
 
 cargo test --workspace --features plinth-application/testing   # must be green
-./scripts/fitness.sh                                           # must print PASS
+./scripts/fitness.sh                                           # must print PASS (bash)
+pnpm --dir ui install && pnpm --dir ui test                    # frontend tests
 ```
 
-Rust 1.97.1. On macOS, `rustup` comes from Homebrew and its binaries live in
+On Windows: Rust stable with the MSVC toolchain, Visual Studio 2022 Build Tools ("Desktop
+development with C++"), Node 24 LTS and pnpm 10.28.0 (see
+`docs/flow/2026-11-20-tauri-panel/windows-build.md`). `scripts/fitness.sh` is a bash script: run
+it from Git Bash.
+
+Rust 1.97.1 on the Mac. On macOS, `rustup` comes from Homebrew and its binaries live in
 `/opt/homebrew/opt/rustup/bin` — add that to `PATH`.
 
 To type-check the Windows code from the Mac without any C toolchain (`cargo check` does not
@@ -161,9 +167,8 @@ export is the first prerequisite for phase 5 templates.
 The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 
 0. ~~Run the focus test against WoW~~ — **done, PASS** (2026-11-20, section 2).
-1. **Next:** minimal `plinth-tauri`: a borderless, always-on-top, non-activating window with one button
-   wired to `execute_action`; repeat the focus test with the real window.
-2. UI: swipe pages, left/right sidebar, lock.
+1. ~~Minimal `plinth-tauri` and the focus test with the real window~~ — **done, PASS** (2026-11-20, N5).
+2. **Next:** UI: swipe pages, left/right sidebar, lock.
 3. WoW: literal keys and macros in templates, 1–2 real templates, manual game selection.
 4. Packaging, docs, license, public repo — end of MVP.
 5. Star Citizen as second game: export real keybinds and feed `keybinds_sc`, live data.
