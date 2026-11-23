@@ -23,10 +23,11 @@ pub fn panel_window_spec() -> PanelWindowSpec {
         label: "main",
         // Same title as the Phase 0 spike window.
         title: "Plinth",
-        x: 200.0,
-        y: 200.0,
-        width: 560.0,
-        height: 220.0,
+        x: 100.0,
+        y: 100.0,
+        // Room for the sidebar and a page; provisional until the touchscreen.
+        width: 900.0,
+        height: 300.0,
         decorations: false,
         always_on_top: true,
         focusable: false,
@@ -66,5 +67,14 @@ mod tests {
         assert!(spec.skip_taskbar);
         assert_eq!(spec.label, "main");
         assert_eq!(spec.title, "Plinth");
+    }
+
+    #[test]
+    fn panel_window_spec_fits_sidebar_and_page() {
+        let spec = panel_window_spec();
+        assert_eq!(spec.width, 900.0);
+        assert_eq!(spec.height, 300.0);
+        assert_eq!(spec.x, 100.0);
+        assert_eq!(spec.y, 100.0);
     }
 }

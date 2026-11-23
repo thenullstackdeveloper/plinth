@@ -36,3 +36,15 @@ test("a failed press keeps the view and records the error", async () => {
   expect(usePanelStore.getState().view).toBe(view);
   expect(usePanelStore.getState().error).toBe("action: unknown");
 });
+
+test("press keeps the view the backend returns", async () => {
+  const before = viewWith([[component("a")]]);
+  const after = viewWith([[component("a")]], { locked: true });
+  usePanelStore.setState({ view: before });
+  invokeMock.mockResolvedValue(after);
+
+  await usePanelStore.getState().press("a");
+
+  expect(invokeMock).toHaveBeenCalledWith("press", { componentId: "a" });
+  expect(usePanelStore.getState().view).toEqual(after);
+});

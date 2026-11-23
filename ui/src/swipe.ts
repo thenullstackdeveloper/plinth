@@ -20,12 +20,14 @@ export function swipeDirection(offsetX: number, velocityX: number, width: number
   return null;
 }
 
-/** The `onDragEnd` logic of the page, free of Motion so it can be tested. */
+/** The `onDragEnd` logic of the page, free of Motion so it can be tested. Does nothing while locked. */
 export function handleSwipeEnd(
   info: { offset: { x: number }; velocity: { x: number } },
   width: number,
+  locked: boolean,
   navigate: (direction: NavDirection) => void,
 ): void {
+  if (locked) return;
   const direction = swipeDirection(info.offset.x, info.velocity.x, width);
   if (direction !== null) navigate(direction);
 }

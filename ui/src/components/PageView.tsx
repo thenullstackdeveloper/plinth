@@ -17,7 +17,12 @@ const pageVariants = {
  * transform string; the inner one is the draggable surface, because Motion's
  * drag moves `x` and a transform string on the same element would cancel it.
  */
-export function PageView(props: { components: ComponentDto[]; pageIndex: number; direction: NavDirection | null }) {
+export function PageView(props: {
+  components: ComponentDto[];
+  pageIndex: number;
+  direction: NavDirection | null;
+  locked: boolean;
+}) {
   const press = usePanelStore((s) => s.press);
   const navigate = usePanelStore((s) => s.navigate);
   const sectionRef = useRef<HTMLElement>(null);
@@ -37,13 +42,13 @@ export function PageView(props: { components: ComponentDto[]; pageIndex: number;
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            drag="x"
+            drag={props.locked ? false : "x"}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.2}
             onDragStart={() => guard.dragStarted()}
             onDragEnd={(_, info) => {
               guard.dragEnded();
-              handleSwipeEnd(info, sectionRef.current?.getBoundingClientRect().width ?? 0, (d) => void navigate(d));
+              handleSwipeEnd(info, sectionRef.current?.getBoundingClientRect().width ?? 0, props.locked, (d) => void navigate(d));
             }}
           >
             {props.components.map((component) => (

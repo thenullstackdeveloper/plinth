@@ -30,13 +30,19 @@ test("without a measured width only the velocity counts", () => {
 
 test("handleSwipeEnd navigates once on a long drag", () => {
   const navigate = vi.fn();
-  handleSwipeEnd({ offset: { x: -300 }, velocity: { x: 0 } }, WIDTH, navigate);
+  handleSwipeEnd({ offset: { x: -300 }, velocity: { x: 0 } }, WIDTH, false, navigate);
   expect(navigate).toHaveBeenCalledTimes(1);
   expect(navigate).toHaveBeenCalledWith("next");
 });
 
 test("handleSwipeEnd does nothing on a short slow drag", () => {
   const navigate = vi.fn();
-  handleSwipeEnd({ offset: { x: -100 }, velocity: { x: 0 } }, WIDTH, navigate);
+  handleSwipeEnd({ offset: { x: -100 }, velocity: { x: 0 } }, WIDTH, false, navigate);
+  expect(navigate).not.toHaveBeenCalled();
+});
+
+test("handleSwipeEnd does nothing while the lock is engaged", () => {
+  const navigate = vi.fn();
+  handleSwipeEnd({ offset: { x: -300 }, velocity: { x: 0 } }, WIDTH, true, navigate);
   expect(navigate).not.toHaveBeenCalled();
 });

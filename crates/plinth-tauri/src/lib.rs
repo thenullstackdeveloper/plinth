@@ -4,6 +4,7 @@
 use std::sync::Mutex;
 
 use plinth_infra::clock::SystemClock;
+use plinth_infra::config_fs::FsConfigStore;
 use plinth_infra::keybinds_static::StaticKeybindProvider;
 use tauri::Manager;
 
@@ -21,6 +22,7 @@ pub fn run() {
                 StaticKeybindProvider::wow_defaults(),
                 commands::platform_sender(),
                 SystemClock::new(),
+                FsConfigStore::at_default_location()?,
             )?;
             app.manage(Mutex::new(panel));
             window::build_panel_window(app)?;

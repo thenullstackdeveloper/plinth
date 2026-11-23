@@ -4,6 +4,7 @@
 use std::sync::Mutex;
 
 use plinth_infra::clock::SystemClock;
+use plinth_infra::config_fs::FsConfigStore;
 use plinth_infra::keybinds_static::StaticKeybindProvider;
 use tauri::State;
 
@@ -28,7 +29,7 @@ pub fn platform_sender() -> Sender {
 
 /// The panel as the app manages it. The same type is used in `manage` and in
 /// every `State`.
-pub type AppPanel = Panel<Sender, StaticKeybindProvider, SystemClock>;
+pub type AppPanel = Panel<Sender, StaticKeybindProvider, SystemClock, FsConfigStore>;
 
 #[tauri::command]
 pub fn render_state(panel: State<'_, Mutex<AppPanel>>) -> Result<RenderView, String> {
