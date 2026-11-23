@@ -4,8 +4,8 @@
 //! `plinth-application`.
 
 use plinth_application::{
-    execute_action, navigate, query_render_state, ActionKind, AppError, Clock, ComponentView,
-    ConfigStore, GameKeybindProvider, InputSender, Prefs,
+    execute_action, navigate, query_render_state, ActionKind, ActionOutcome, AppError, Clock,
+    ComponentView, ConfigStore, GameKeybindProvider, InputSender, Prefs,
 };
 use plinth_domain::{
     Action, AppAction, ComponentId, DomainError, NavDirection, RuntimeState, SidebarSide, Template,
@@ -128,9 +128,9 @@ where
         })
     }
 
-    pub fn press(&mut self, component_id: &str) -> Result<(), PanelError> {
+    pub fn press(&mut self, component_id: &str) -> Result<ActionOutcome, PanelError> {
         let side_before = self.state.sidebar_side();
-        execute_action(
+        let outcome = execute_action(
             &ComponentId::new(component_id),
             &self.template,
             &mut self.state,
@@ -142,7 +142,7 @@ where
         if self.state.sidebar_side() != side_before {
             self.remember_side();
         }
-        Ok(())
+        Ok(outcome)
     }
 
     /// Saves the sidebar side. A failure only means the side is not remembered
@@ -221,6 +221,7 @@ fn app_action_name(action: &AppAction) -> &'static str {
         AppAction::GoToPage(_) => "go_to_page",
         AppAction::ToggleLock => "toggle_lock",
         AppAction::SwitchSidebarSide => "switch_sidebar",
+        AppAction::Quit => "quit",
     }
 }
 
@@ -390,5 +391,18 @@ mod tests {
             Err(PanelError::Blocked(_))
         ));
         assert_eq!(panel.render().current_page, 0);
+    }
+
+    #[test]
+    fn quit_press_reports_quit() {
+        let mut panel = panel_with(WOW_DEMO_TEMPLATE);
+        assert_eq!(panel.press("quit").unwrap(), ActionOutcome::Quit);
+    }
+
+    #[test]
+    fn quit_press_is_blocked_when_locked() {
+        let mut panel = panel_with(WOW_DEMO_TEMPLATE);
+        panel.press("lock").unwrap();
+        assert!(matches!(panel.press("quit"), Err(PanelError::Blocked(_))));
     }
 }

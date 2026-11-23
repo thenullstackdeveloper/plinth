@@ -18,3 +18,4 @@ sidebar:
   components:
     - { id: lock, position: { row: 0, col: 0 }, action: "app.toggle_lock", label: "Lock" }
     - { id: switch_side, position: { row: 1, col: 0 }, action: "app.switch_sidebar", label: "Switch side" }
+    - { id: quit, position: { row: 2, col: 0 }, action: "app.quit", label: "Quit" }

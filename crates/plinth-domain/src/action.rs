@@ -39,6 +39,8 @@ pub enum AppAction {
     GoToPage(usize),
     ToggleLock,
     SwitchSidebarSide,
+    /// Close the panel. The engine only reports it; the host closes the app.
+    Quit,
 }
 
 impl AppAction {
@@ -52,6 +54,7 @@ impl AppAction {
             "app.prev_page" => Some(AppAction::PrevPage),
             "app.toggle_lock" => Some(AppAction::ToggleLock),
             "app.switch_sidebar" => Some(AppAction::SwitchSidebarSide),
+            "app.quit" => Some(AppAction::Quit),
             _ => None,
         }
     }

@@ -52,6 +52,14 @@ mod tests {
     }
 
     #[test]
+    fn quit_is_a_reserved_app_action() {
+        assert_eq!(
+            catalog().resolve("app.quit").unwrap(),
+            Action::App(AppAction::Quit)
+        );
+    }
+
+    #[test]
     fn resolve_unknown_action_dies() {
         let err = catalog().resolve("rm -rf /").unwrap_err();
         assert!(matches!(err, DomainError::UnknownAction(_)));

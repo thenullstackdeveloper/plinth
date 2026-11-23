@@ -10,6 +10,7 @@ use tauri::Manager;
 
 pub mod commands;
 pub mod panel;
+pub mod tray;
 pub mod window;
 
 use panel::{Panel, WOW_DEMO_TEMPLATE};
@@ -26,6 +27,7 @@ pub fn run() {
             )?;
             app.manage(Mutex::new(panel));
             window::build_panel_window(app)?;
+            tray::build_tray(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

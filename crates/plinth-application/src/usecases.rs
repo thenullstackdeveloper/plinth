@@ -28,6 +28,14 @@ pub enum AppError {
     Provider(#[from] ProviderError),
 }
 
+/// What the host must do after an action. The engine never closes anything:
+/// it reports a quit and the host decides how to end the app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionOutcome {
+    Continue,
+    Quit,
+}
+
 /// LoadTemplate — loads an already-validated template from a `TemplateSource`.
 pub fn load_template<S: TemplateSource>(source: &S, reference: &str) -> Result<Template, AppError> {
     Ok(source.load(reference)?)
@@ -80,7 +88,7 @@ pub fn execute_action<I, P, C>(
     input: &I,
     provider: &P,
     clock: &C,
-) -> Result<(), AppError>
+) -> Result<ActionOutcome, AppError>
 where
     I: InputSender,
     P: GameKeybindProvider,
@@ -91,13 +99,18 @@ where
         .ok_or_else(|| DomainError::UnknownComponent(component_id.as_str().to_string()))?;
 
     match &component.action {
+        // Quitting is guarded by the lock, like page changes, so a tap in the
+        // middle of a fight cannot close the panel.
+        Action::App(AppAction::Quit) if state.is_locked() => Err(DomainError::LockEngaged.into()),
+        Action::App(AppAction::Quit) => Ok(ActionOutcome::Quit),
         Action::App(app) => {
             apply_app_action(app, template, state)?;
-            Ok(())
+            Ok(ActionOutcome::Continue)
         }
         Action::Game(game) => {
             let binding = resolve_binding(provider, game)?;
-            run_sequence(&binding, &component.id, state, input, clock)
+            run_sequence(&binding, &component.id, state, input, clock)?;
+            Ok(ActionOutcome::Continue)
         }
     }
 }
@@ -119,6 +132,8 @@ fn apply_app_action(
             state.switch_sidebar();
             Ok(())
         }
+        // Handled by `execute_action` before reaching here.
+        AppAction::Quit => Ok(()),
     }
 }
 

@@ -19,7 +19,7 @@ pub use ports::{
 };
 pub use usecases::{
     execute_action, go_to_page, load_template, navigate, query_render_state, refresh_keybinds,
-    switch_sidebar_side, toggle_lock, AppError,
+    switch_sidebar_side, toggle_lock, ActionOutcome, AppError,
 };
 
 #[cfg(test)]
@@ -330,5 +330,67 @@ mod tests {
             !dump.contains("ScanCode") && !dump.contains("KeyEvent") && !dump.contains("KeyStep"),
             "RenderState must not expose resolved key codes: {dump}"
         );
+    }
+
+    /// The 2-page template with a quit button in the sidebar.
+    fn template_with_quit() -> Template {
+        let page = Page::new(vec![comp("lock_target", Action::Game(target_lock()))]).unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![
+                comp("lock", Action::App(AppAction::ToggleLock)),
+                comp("quit", Action::App(AppAction::Quit)),
+            ],
+        };
+        Template::new(meta(), vec![page], sidebar).unwrap()
+    }
+
+    #[test]
+    fn quit_is_reported_when_unlocked() {
+        let template = template_with_quit();
+        let mut state = RuntimeState::new(SidebarSide::Right);
+        let input = FakeInputSender::new();
+        let outcome = execute_action(
+            &ComponentId::new("quit"),
+            &template,
+            &mut state,
+            &input,
+            &provider(),
+            &FakeClock::new(),
+        )
+        .unwrap();
+        assert_eq!(outcome, ActionOutcome::Quit);
+        assert!(input.recorded().is_empty());
+    }
+
+    #[test]
+    fn quit_is_blocked_when_locked() {
+        let template = template_with_quit();
+        let mut state = RuntimeState::new(SidebarSide::Right);
+        state.toggle_lock();
+        let err = execute_action(
+            &ComponentId::new("quit"),
+            &template,
+            &mut state,
+            &FakeInputSender::new(),
+            &provider(),
+            &FakeClock::new(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::Domain(DomainError::LockEngaged)));
+    }
+
+    #[test]
+    fn game_action_reports_continue() {
+        let outcome = execute_action(
+            &ComponentId::new("lock_target"),
+            &template_with_quit(),
+            &mut RuntimeState::new(SidebarSide::Right),
+            &FakeInputSender::new(),
+            &provider(),
+            &FakeClock::new(),
+        )
+        .unwrap();
+        assert_eq!(outcome, ActionOutcome::Continue);
     }
 }
