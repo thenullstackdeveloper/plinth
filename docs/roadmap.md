@@ -214,7 +214,9 @@ What each phase proves:
   that reuses the React UI (→ React Native) and sends actions to the server, which fires the
   keystroke on the PC. The current architecture would already allow it (the UI only sends intent;
   that boundary could become a network boundary). **Not a priority:** the priority is the PC with
-  the touchscreen.
+  the touchscreen. Decided 2026-11-23: the mobile app would use React Native with **Reanimated**
+  and **Gesture Handler** for animations and gestures (Motion, used by the panel, is web-only); the
+  panel's Zustand store and its adapters are the parts that could be reused.
 
 ---
 

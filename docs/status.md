@@ -16,8 +16,8 @@ blocks; each finished block is tagged and built on the Windows machine for game 
 | Linux input adapter (`input_uinput`) | Done, validated on real hardware |
 | **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, validated against WoW (2026-11-20) |
 | **Windows focus spike (`spike_win.exe`)** | **Run against WoW: PASS** (2026-11-20) |
-| **`plinth-tauri` (composition root + window)** | **Minimal panel (phase 1): focus test with the real window PASS** (2026-11-20) |
-| React frontend (`ui/`) | Minimal: one button per component of the current page, 4 Vitest tests green |
+| **`plinth-tauri` (composition root + window)** | Phase 1 focus test with the real window **PASS** (2026-11-20). Phase 2: three-page demo template, `navigate` command, sidebar side remembered in `prefs.json`, `app.quit` and a system tray `Quit` — pending the Windows test of `v0.2.0` |
+| React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store; 25 Vitest tests green |
 
 Current branch: `feat/tauri-panel` (contains all the work so far; `main` is behind and nothing has been merged into it yet).
 
@@ -169,8 +169,8 @@ The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 
 0. ~~Run the focus test against WoW~~ — **done, PASS** (2026-11-20, section 2).
 1. ~~Minimal `plinth-tauri` and the focus test with the real window~~ — **done, PASS** (2026-11-20, N5).
-2. **Next:** UI: swipe pages, left/right sidebar, lock.
-3. WoW: literal keys and macros in templates, 1–2 real templates, manual game selection.
+2. ~~UI: swipe pages, left/right sidebar, lock, quit~~ — **done**, pending the Windows test of `v0.2.0`.
+3. **Next:** WoW: literal keys and macros in templates, 1–2 real templates, manual game selection.
 4. Packaging, docs, license, public repo — end of MVP.
 5. Star Citizen as second game: export real keybinds and feed `keybinds_sc`, live data.
 6. Linux: uinput + Hyprland, reusing the validated work.
