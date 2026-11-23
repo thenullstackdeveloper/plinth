@@ -1,9 +1,10 @@
 # Project status and handoff
 
-Snapshot of where Plinth stands and how to continue. Development and game testing happen on
-the Windows machine (until phase 1 development happened on a Mac).
+Snapshot of where Plinth stands and how to continue. Development happens on a Mac, in large
+blocks; each finished block is tagged and built on the Windows machine for game testing (see
+`docs/flow/2026-11-20-handoff-windows.md`).
 
-**Last updated:** 2026-11-20
+**Last updated:** 2026-11-23
 
 ## 1. Where the project is
 
