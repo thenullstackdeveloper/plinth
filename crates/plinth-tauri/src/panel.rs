@@ -4,15 +4,26 @@
 //! `plinth-application`.
 
 use plinth_application::{
-    execute_action, query_render_state, ActionKind, Clock, ComponentView, GameKeybindProvider,
-    InputSender,
+    execute_action, navigate, query_render_state, ActionKind, AppError, Clock, ComponentView,
+    GameKeybindProvider, InputSender,
 };
-use plinth_domain::{ComponentId, RuntimeState, Template};
+use plinth_domain::{ComponentId, DomainError, NavDirection, RuntimeState, Template};
 use plinth_infra::template_fs::FsTemplateSource;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// The phase 1 template: one page with the WoW world map button.
 pub const WOW_PHASE1_TEMPLATE: &str = include_str!("../templates/wow-phase1.yaml");
+
+/// The demo template the app loads: three pages of default WoW keys.
+pub const WOW_DEMO_TEMPLATE: &str = include_str!("../templates/wow-demo.yaml");
+
+/// A page change requested by the UI (a swipe).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NavDirectionDto {
+    Next,
+    Prev,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum PanelError {
@@ -20,6 +31,18 @@ pub enum PanelError {
     Template(String),
     #[error("action: {0}")]
     Action(String),
+    /// The lock or a page edge refused the request. Not an error for the user.
+    #[error("blocked: {0}")]
+    Blocked(String),
+}
+
+fn map_app_error(e: AppError) -> PanelError {
+    match e {
+        AppError::Domain(DomainError::LockEngaged | DomainError::PageOutOfRange { .. }) => {
+            PanelError::Blocked(e.to_string())
+        }
+        other => PanelError::Action(other.to_string()),
+    }
 }
 
 /// What the UI renders. Serializable here because the core DTOs cannot depend
@@ -91,7 +114,15 @@ where
             &self.provider,
             &self.clock,
         )
-        .map_err(|e| PanelError::Action(e.to_string()))
+        .map_err(map_app_error)
+    }
+
+    pub fn navigate(&mut self, direction: NavDirectionDto) -> Result<(), PanelError> {
+        let direction = match direction {
+            NavDirectionDto::Next => NavDirection::Next,
+            NavDirectionDto::Prev => NavDirection::Prev,
+        };
+        navigate(&mut self.state, &self.template, direction).map_err(map_app_error)
     }
 
     pub fn render(&self) -> RenderView {
@@ -134,13 +165,17 @@ mod tests {
     use plinth_infra::keybinds_static::StaticKeybindProvider;
 
     fn panel() -> Panel<FakeInputSender, StaticKeybindProvider, FakeClock> {
+        panel_with(WOW_PHASE1_TEMPLATE)
+    }
+
+    fn panel_with(template: &str) -> Panel<FakeInputSender, StaticKeybindProvider, FakeClock> {
         Panel::new(
-            WOW_PHASE1_TEMPLATE,
+            template,
             StaticKeybindProvider::wow_defaults(),
             FakeInputSender::new(),
             FakeClock::new(),
         )
-        .expect("the phase 1 template loads")
+        .expect("the template loads")
     }
 
     #[test]
@@ -179,5 +214,36 @@ mod tests {
         assert!(json["pages"][0]["components"][0]
             .get("actionKind")
             .is_some());
+    }
+
+    #[test]
+    fn demo_template_has_three_pages() {
+        let view = panel_with(WOW_DEMO_TEMPLATE).render();
+        assert_eq!(view.pages.len(), 3);
+        let ids: Vec<&str> = view.pages[0]
+            .components
+            .iter()
+            .map(|c| c.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["world_map", "character"]);
+    }
+
+    #[test]
+    fn navigate_next_moves_to_page_1() {
+        let mut panel = panel_with(WOW_DEMO_TEMPLATE);
+        panel.navigate(NavDirectionDto::Next).unwrap();
+        assert_eq!(panel.render().current_page, 1);
+    }
+
+    #[test]
+    fn navigate_past_the_last_page_is_blocked() {
+        let mut panel = panel_with(WOW_DEMO_TEMPLATE);
+        panel.navigate(NavDirectionDto::Next).unwrap();
+        panel.navigate(NavDirectionDto::Next).unwrap();
+        assert!(matches!(
+            panel.navigate(NavDirectionDto::Next),
+            Err(PanelError::Blocked(_))
+        ));
+        assert_eq!(panel.render().current_page, 2);
     }
 }

@@ -7,8 +7,19 @@ use std::collections::HashMap;
 use plinth_application::{GameKeybindProvider, ProviderError, ResolveError};
 use plinth_domain::{ActionCatalog, ActionId, GameAction, KeyBinding, KeySequence, ScanCode};
 
-/// World of Warcraft's default key for the world map: `M` (evdev `KEY_M`).
+// World of Warcraft's default keys (evdev codes).
+/// World map: `M`.
 const WOW_KEY_M: ScanCode = ScanCode(50);
+/// Character panel: `C`.
+const WOW_KEY_C: ScanCode = ScanCode(46);
+/// Bags: `B`.
+const WOW_KEY_B: ScanCode = ScanCode(48);
+/// Spellbook: `P`.
+const WOW_KEY_P: ScanCode = ScanCode(25);
+/// Quest log: `L`.
+const WOW_KEY_L: ScanCode = ScanCode(38);
+/// Talents: `N`.
+const WOW_KEY_N: ScanCode = ScanCode(49);
 
 pub struct StaticKeybindProvider {
     bindings: HashMap<ActionId, KeySequence>,
@@ -21,12 +32,21 @@ impl StaticKeybindProvider {
         }
     }
 
-    /// The WoW actions available in phase 1.
+    /// The WoW actions of the demo panel, bound to their default keys.
     pub fn wow_defaults() -> Self {
-        Self::new(vec![(
-            ActionId::new("wow.world_map"),
-            KeySequence::single_press(WOW_KEY_M),
-        )])
+        Self::new(
+            [
+                ("wow.world_map", WOW_KEY_M),
+                ("wow.character", WOW_KEY_C),
+                ("wow.bags", WOW_KEY_B),
+                ("wow.spellbook", WOW_KEY_P),
+                ("wow.quest_log", WOW_KEY_L),
+                ("wow.talents", WOW_KEY_N),
+            ]
+            .into_iter()
+            .map(|(id, key)| (ActionId::new(id), KeySequence::single_press(key)))
+            .collect(),
+        )
     }
 }
 
@@ -71,6 +91,25 @@ mod tests {
             provider.resolve(&action("wow.nope")),
             Err(ResolveError::NotBound(_))
         ));
+    }
+
+    #[test]
+    fn wow_defaults_resolve_the_six_demo_keys() {
+        let provider = StaticKeybindProvider::wow_defaults();
+        for (id, code) in [
+            ("wow.world_map", 50),
+            ("wow.character", 46),
+            ("wow.bags", 48),
+            ("wow.spellbook", 25),
+            ("wow.quest_log", 38),
+            ("wow.talents", 49),
+        ] {
+            assert_eq!(
+                provider.resolve(&action(id)).unwrap(),
+                KeySequence::single_press(ScanCode(code)),
+                "{id}"
+            );
+        }
     }
 
     #[test]

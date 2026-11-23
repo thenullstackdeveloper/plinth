@@ -1,16 +1,25 @@
-import { usePanel } from "../hooks/usePanel";
+import { useEffect } from "react";
+
+import { usePanelStore } from "../store/panelStore";
+import { PageView } from "./PageView";
 
 export function App() {
-  const { view, error, press } = usePanel();
-  const components = view?.pages[view.currentPage]?.components ?? [];
+  const view = usePanelStore((s) => s.view);
+  const error = usePanelStore((s) => s.error);
+  const lastDirection = usePanelStore((s) => s.lastDirection);
+  const load = usePanelStore((s) => s.load);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const page = view?.pages[view.currentPage];
 
   return (
     <main>
-      {components.map((component) => (
-        <button key={component.id} type="button" onClick={() => press(component.id)}>
-          {component.label ?? component.id}
-        </button>
-      ))}
+      {view && page && (
+        <PageView components={page.components} pageIndex={view.currentPage} direction={lastDirection} />
+      )}
       {error !== null && <p role="alert">{error}</p>}
     </main>
   );

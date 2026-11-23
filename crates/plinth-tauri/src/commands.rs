@@ -7,7 +7,7 @@ use plinth_infra::clock::SystemClock;
 use plinth_infra::keybinds_static::StaticKeybindProvider;
 use tauri::State;
 
-use crate::panel::{Panel, RenderView};
+use crate::panel::{NavDirectionDto, Panel, PanelError, RenderView};
 
 /// The input adapter of the running platform. Only Windows sends real keys;
 /// elsewhere the panel logs them.
@@ -36,8 +36,29 @@ pub fn render_state(panel: State<'_, Mutex<AppPanel>>) -> Result<RenderView, Str
     Ok(panel.render())
 }
 
+/// Answers with the view after the press. A press the lock or a page edge
+/// refused is not an error for the UI: it gets the unchanged view.
 #[tauri::command]
-pub fn press(component_id: String, panel: State<'_, Mutex<AppPanel>>) -> Result<(), String> {
+pub async fn press(
+    component_id: String,
+    panel: State<'_, Mutex<AppPanel>>,
+) -> Result<RenderView, String> {
     let mut panel = panel.lock().map_err(|e| e.to_string())?;
-    panel.press(&component_id).map_err(|e| e.to_string())
+    match panel.press(&component_id) {
+        Ok(()) | Err(PanelError::Blocked(_)) => Ok(panel.render()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// A swipe. Same answer as [`press`].
+#[tauri::command]
+pub async fn navigate(
+    direction: NavDirectionDto,
+    panel: State<'_, Mutex<AppPanel>>,
+) -> Result<RenderView, String> {
+    let mut panel = panel.lock().map_err(|e| e.to_string())?;
+    match panel.navigate(direction) {
+        Ok(()) | Err(PanelError::Blocked(_)) => Ok(panel.render()),
+        Err(e) => Err(e.to_string()),
+    }
 }

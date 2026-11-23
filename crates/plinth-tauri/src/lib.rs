@@ -11,13 +11,13 @@ pub mod commands;
 pub mod panel;
 pub mod window;
 
-use panel::{Panel, WOW_PHASE1_TEMPLATE};
+use panel::{Panel, WOW_DEMO_TEMPLATE};
 
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let panel: commands::AppPanel = Panel::new(
-                WOW_PHASE1_TEMPLATE,
+                WOW_DEMO_TEMPLATE,
                 StaticKeybindProvider::wow_defaults(),
                 commands::platform_sender(),
                 SystemClock::new(),
@@ -28,7 +28,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::render_state,
-            commands::press
+            commands::press,
+            commands::navigate
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Plinth panel");
