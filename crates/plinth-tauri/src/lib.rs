@@ -37,10 +37,23 @@ pub fn run() {
                 config,
             )?
             .named(startup.name);
+            let names = dir.list().unwrap_or_else(|e| {
+                eprintln!("plinth: could not list the templates folder: {e}");
+                Vec::new()
+            });
+            let entries = tray::template_menu_entries(
+                &names,
+                |name| {
+                    dir.read(name)
+                        .map(|yaml| loads_with_wow_catalog(&yaml))
+                        .unwrap_or(false)
+                },
+                panel.template_name(),
+            );
             app.manage(Mutex::new(panel));
             app.manage(dir);
             window::build_panel_window(app)?;
-            tray::build_tray(app)?;
+            tray::build_tray(app, &entries)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

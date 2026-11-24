@@ -1,10 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 export type ComponentDto = {
   id: string;
   label: string | null;
   actionKind: "game" | "app" | "keys";
-  /** The app action the component triggers (`"toggle_lock"`, …), or null for a game action. */
+  /** The app action the component triggers (`"toggle_lock"`, …), or null for game and key buttons. */
   appAction: string | null;
 };
 
@@ -28,4 +29,12 @@ export function press(componentId: string): Promise<RenderView> {
 
 export function navigate(direction: NavDirection): Promise<RenderView> {
   return invoke<RenderView>("navigate", { direction });
+}
+
+/** Sent by Rust when the panel changes outside a command (a template picked in the tray). */
+export const PANEL_CHANGED_EVENT = "panel-changed";
+
+/** Calls `handler` on every panel change; resolves to the function that stops listening. */
+export function onPanelChanged(handler: () => void): Promise<() => void> {
+  return listen(PANEL_CHANGED_EVENT, () => handler());
 }

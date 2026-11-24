@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { render, screen } from "@testing-library/react";
+import { listen } from "@tauri-apps/api/event";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 
@@ -9,8 +10,14 @@ import { component, viewWith } from "../testing/views";
 import { App } from "./App";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn() }));
 
 const invokeMock = vi.mocked(invoke);
+const listenMock = vi.mocked(listen);
+
+/** The `unlisten` of the last subscription, and its handler. */
+let unlisten = vi.fn();
+let panelChanged: (() => void) | null = null;
 
 const worldMap = component("world_map", "World map");
 
@@ -25,6 +32,13 @@ function backend(view: RenderView, onPress: () => Promise<unknown> = () => Promi
 
 beforeEach(() => {
   invokeMock.mockReset();
+  listenMock.mockReset();
+  unlisten = vi.fn();
+  panelChanged = null;
+  listenMock.mockImplementation((_event, handler) => {
+    panelChanged = () => handler({ event: "panel-changed", id: 1, payload: null });
+    return Promise.resolve(unlisten);
+  });
   usePanelStore.setState(usePanelStore.getInitialState(), true);
 });
 
@@ -59,4 +73,38 @@ test("renders the buttons of the current page, not the first", async () => {
   render(<App />);
   expect(await screen.findByRole("button", { name: "Bags" })).toBeTruthy();
   expect(screen.queryByRole("button", { name: "World map" })).toBeNull();
+});
+
+test("reloads the view when the panel changes", async () => {
+  backend(viewWith([[worldMap]]));
+  render(<App />);
+  await screen.findByRole("button", { name: "World map" });
+  expect(listenMock).toHaveBeenCalledWith("panel-changed", expect.any(Function));
+
+  backend(viewWith([[component("action_1", "Action 1")]]));
+  await act(async () => panelChanged?.());
+
+  expect(await screen.findByRole("button", { name: "Action 1" })).toBeTruthy();
+  expect(invokeMock.mock.calls.filter(([command]) => command === "render_state")).toHaveLength(2);
+});
+
+test("stops listening on unmount", async () => {
+  backend(viewWith([[worldMap]]));
+  const { unmount } = render(<App />);
+  await screen.findByRole("button", { name: "World map" });
+  unmount();
+  expect(unlisten).toHaveBeenCalledTimes(1);
+});
+
+test("stops listening when unmounted before listen resolves", async () => {
+  backend(viewWith([[worldMap]]));
+  let resolveListen: (fn: () => void) => void = () => {};
+  listenMock.mockImplementation(
+    () => new Promise((resolve) => (resolveListen = resolve as (fn: () => void) => void)),
+  );
+  const { unmount } = render(<App />);
+  unmount();
+  expect(unlisten).not.toHaveBeenCalled();
+  await act(async () => resolveListen(unlisten));
+  expect(unlisten).toHaveBeenCalledTimes(1);
 });

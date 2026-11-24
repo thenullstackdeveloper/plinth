@@ -28,6 +28,11 @@ pub fn platform_sender() -> Sender {
     plinth_infra::input_log::stderr()
 }
 
+/// Event telling the UI the panel changed outside a command (a template
+/// picked in the tray), so it asks for the view again. Same name in
+/// `ui/src/adapters/panelApi.ts`.
+pub const PANEL_CHANGED_EVENT: &str = "panel-changed";
+
 /// The panel as the app manages it. The same type is used in `manage` and in
 /// every `State`.
 pub type AppPanel = Panel<Sender, StaticKeybindProvider, SystemClock, FsConfigStore>;
