@@ -26,9 +26,11 @@ core.
 ## Layers
 
 ### `plinth-domain` — pure, game-agnostic
-- **`Action`**: a **closed** enum, `Action::Game(GameAction)` | `Action::App(AppAction)`. There
-  is no `Raw(String)` variant → running an arbitrary command is **unrepresentable** by
-  construction. This is the security boundary expressed as a type.
+- **`Action`**: a **closed** enum, `Action::App(AppAction)` | `Action::Game(GameAction)` |
+  `Action::Keys(KeyMacro)`. There is no `Raw(String)` variant → running an arbitrary command is
+  **unrepresentable** by construction. This is the security boundary expressed as a type.
+- **`KeyMacro` / `KeyChord`**: the literal keys a template writes. A chord is a key with the
+  modifiers held around it; a macro is 1 to 16 chords fired on one tap.
 - **`Template`**: an **immutable** aggregate root (pages, components, sidebar) with its
   invariants (unique IDs, valid page references). An invalid `Template` is unconstructable
   (smart constructors).

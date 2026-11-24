@@ -159,12 +159,15 @@ CORE (Rust)
    · Runtime: current page, lock state, toggles, focus handling
 ```
 
-**Two action categories, separated by design:**
+**Three action categories, separated by design:**
 
-- **Game actions** → a semantic action or a literal key/macro; they send keys to the game through
-  the OS input layer.
-- **App actions** → navigate pages, toggle the lock, switch the sidebar side. They **never touch
-  the game**; they live inside the engine and are safe by definition.
+- **Game actions** → a semantic action, resolved to keys from the game's real keybinds; they send
+  keys to the game through the OS input layer.
+- **Literal keys** → a key, a chord (`shift+1`) or a short macro (up to 16 steps) written in the
+  template. They send exactly those keys, without the catalog or a game adapter, and hold nothing
+  but key codes.
+- **App actions** → navigate pages, toggle the lock, switch the sidebar side, quit. They **never
+  touch the game**; they live inside the engine and are safe by definition.
 
 **Live data** (phase 5) is read-only and display-only: it flows from an official source to the UI
 and never reaches the input layer.

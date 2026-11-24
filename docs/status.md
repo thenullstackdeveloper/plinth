@@ -4,22 +4,22 @@ Snapshot of where Plinth stands and how to continue. Development happens on a Ma
 blocks; each finished block is tagged and built on the Windows machine for game testing (see
 `docs/flow/2026-11-20-handoff-windows.md`).
 
-**Last updated:** 2026-11-23
+**Last updated:** 2026-11-24
 
 ## 1. Where the project is
 
 | Area | State |
 |---|---|
-| Hexagonal core (`plinth-domain`, `plinth-application`, `plinth-infra`) | **Done**, fitness test passing (workspace: 40 Rust tests green on macOS) |
-| Template contract (`schema/plinth.template.schema.json`) | Done |
+| Hexagonal core (`plinth-domain`, `plinth-application`, `plinth-infra`) | **Done**, fitness test passing (workspace: 109 Rust tests green on macOS) |
+| Template contract (`schema/plinth.template.schema.json`) | Done. Phase 3: a component carries `action` or `keys` (literal keys: `"m"`, `"shift+1"`, or a list of up to 16 steps) |
 | SC keybind adapter (`keybinds_sc`) | Done for single-key bindings; chords/joystick unsupported (known limitation) |
 | Linux input adapter (`input_uinput`) | Done, validated on real hardware |
 | **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, validated against WoW (2026-11-20) |
 | **Windows focus spike (`spike_win.exe`)** | **Run against WoW: PASS** (2026-11-20) |
-| **`plinth-tauri` (composition root + window)** | Phase 1 focus test with the real window **PASS** (2026-11-20). Phase 2: three-page demo template, `navigate` command, sidebar side remembered in `prefs.json`, `app.quit` and a system tray `Quit` — pending the Windows test of `v0.2.0` |
-| React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store; 25 Vitest tests green |
+| **`plinth-tauri` (composition root + window)** | Phase 1 focus test with the real window **PASS** (2026-11-20). Phase 2: three-page demo template, `navigate` command, sidebar side remembered in `prefs.json`, `app.quit` and a system tray `Quit` — pending the Windows test of `v0.2.0`. Phase 3: templates in `%APPDATA%\plinth\templates` (seeded once with `wow-default-keys.yaml` and `wow-demo.yaml`, never overwritten), started with the last chosen one, picked from the tray's `Templates` submenu — pending the Windows test of `v0.3.0` |
+| React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store. Phase 3: redraws when the template changes from the tray; 28 Vitest tests green |
 
-Current branch: `feat/tauri-panel` (contains all the work so far; `main` is behind and nothing has been merged into it yet).
+Current branch: `feat/wow-literal-keys` (contains all the work so far, on top of `feat/panel-ui`; `main` is behind and nothing has been merged into it yet).
 
 ## 2. Phase 0 spike — results so far
 
@@ -120,7 +120,7 @@ quirk — R1 may well be easier here than on Linux.
 ```bash
 git clone git@github.com:thenullstackdeveloper/plinth.git
 cd plinth
-git switch feat/tauri-panel
+git switch feat/wow-literal-keys
 
 # core.hooksPath is local and NOT inherited by a clone
 git config core.hooksPath .githooks
@@ -170,8 +170,10 @@ The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 0. ~~Run the focus test against WoW~~ — **done, PASS** (2026-11-20, section 2).
 1. ~~Minimal `plinth-tauri` and the focus test with the real window~~ — **done, PASS** (2026-11-20, N5).
 2. ~~UI: swipe pages, left/right sidebar, lock, quit~~ — **done**, pending the Windows test of `v0.2.0`.
-3. **Next:** WoW: literal keys and macros in templates, 1–2 real templates, manual game selection.
-4. Packaging, docs, license, public repo — end of MVP.
+3. ~~WoW: literal keys and macros in templates, real templates, manual game selection~~ —
+   **done**, pending the Windows test of `v0.3.0`. The template with the author's own key
+   bindings comes later, by editing a file in the templates folder.
+4. **Next:** packaging, docs, license, public repo — end of MVP.
 5. Star Citizen as second game: export real keybinds and feed `keybinds_sc`, live data.
 6. Linux: uinput + Hyprland, reusing the validated work.
 
