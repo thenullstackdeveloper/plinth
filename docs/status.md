@@ -19,7 +19,7 @@ blocks; each finished block is tagged and built on the Windows machine for game 
 | **`plinth-tauri` (composition root + window)** | Phase 1 focus test with the real window **PASS** (2026-11-20). Phase 2: three-page demo template, `navigate` command, sidebar side remembered in `prefs.json`, `app.quit` and a system tray `Quit`. Phase 3: templates in `%APPDATA%\plinth\templates` (seeded once with `wow-default-keys.yaml` and `wow-demo.yaml`, never overwritten), started with the last chosen one, picked from the tray's `Templates` submenu. Phases 2 and 3 tested together with `v0.3.0` against WoW: **PASS** (2026-11-24), with one open defect (see section 2) |
 | React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store. Phase 3: redraws when the template changes from the tray; 28 Vitest tests green |
 
-Current branch: `feat/wow-literal-keys` (contains all the work so far, on top of `feat/panel-ui`; `main` is behind and nothing has been merged into it yet).
+`main` holds all the work so far (fast-forwarded on 2026-11-24); each new piece of work starts on a short branch from `main`.
 
 ## 2. Phase 0 spike — results so far
 
@@ -130,7 +130,6 @@ quirk — R1 may well be easier here than on Linux.
 ```bash
 git clone git@github.com:thenullstackdeveloper/plinth.git
 cd plinth
-git switch feat/wow-literal-keys
 
 # core.hooksPath is local and NOT inherited by a clone
 git config core.hooksPath .githooks
