@@ -1,0 +1,36 @@
+/* Layout of the panel window. The window is the panel: no scrolling, and no
+   text to select, so a drag that starts anywhere is a swipe, never a
+   selection. */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The sidebar and the page side by side; `data-side` only changes the order. */
+.panel {
+  display: flex;
+  height: 100%;
+}
+
+/* The page takes the width the sidebar leaves; a page change slides inside it. */
+.page {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Both layers of the page cover all of it, so a drag can start on any point,
+   between the buttons or below them. */
+.page-slide,
+.page-surface {
+  height: 100%;
+}

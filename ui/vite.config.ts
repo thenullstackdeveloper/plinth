@@ -11,5 +11,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: false,
     setupFiles: ["./src/test-setup.ts"],
+    // Process the panel stylesheet so its tests can read the rules.
+    css: { include: [/panel\.css/] },
   },
 });

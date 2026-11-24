@@ -30,10 +30,11 @@ export function PageView(props: {
   const dir = props.direction === "prev" ? -1 : 1;
 
   return (
-    <section aria-label="Page" ref={sectionRef}>
+    <section className="page" aria-label="Page" ref={sectionRef}>
       <AnimatePresence mode="wait" custom={dir} initial={false}>
         <motion.div
           key={props.pageIndex}
+          className="page-slide"
           custom={dir}
           variants={pageVariants}
           initial="enter"
@@ -42,6 +43,7 @@ export function PageView(props: {
           transition={{ duration: 0.2 }}
         >
           <motion.div
+            className="page-surface"
             drag={props.locked ? false : "x"}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.2}

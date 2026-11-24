@@ -11,7 +11,7 @@ export function Panel() {
 
   const sidebar = <Sidebar components={view.sidebar} locked={view.locked} />;
   return (
-    <div data-side={view.sidebarSide} data-locked={String(view.locked)}>
+    <div className="panel" data-side={view.sidebarSide} data-locked={String(view.locked)}>
       {view.sidebarSide === "left" && sidebar}
       <PageView
         components={page.components}
