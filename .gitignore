@@ -30,3 +30,6 @@ Thumbs.db
 # Local API tokens (do not commit)
 .mcp.json
 ui/dist/
+# Playwright output
+ui/test-results/
+ui/playwright-report/

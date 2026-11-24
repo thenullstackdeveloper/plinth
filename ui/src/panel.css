@@ -2,9 +2,12 @@
    text to select, so a drag that starts anywhere is a swipe, never a
    selection. */
 
+/* Every ancestor of the panel needs a height for `height: 100%` to resolve,
+   including the <main> that App renders. */
 html,
 body,
-#root {
+#root,
+#root > main {
   height: 100%;
   margin: 0;
 }
@@ -15,10 +18,18 @@ body {
   -webkit-user-select: none;
 }
 
+/* The panel above any error message: the panel takes the height the message
+   leaves, so the message is never pushed out of the window. */
+#root > main {
+  display: flex;
+  flex-direction: column;
+}
+
 /* The sidebar and the page side by side; `data-side` only changes the order. */
 .panel {
   display: flex;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 /* The page takes the width the sidebar leaves; a page change slides inside it. */
