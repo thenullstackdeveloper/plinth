@@ -16,7 +16,7 @@ blocks; each finished block is tagged and built on the Windows machine for game 
 | Linux input adapter (`input_uinput`) | Done, validated on real hardware |
 | **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, validated against WoW (2026-11-20) |
 | **Windows focus spike (`spike_win.exe`)** | **Run against WoW: PASS** (2026-11-20) |
-| **`plinth-tauri` (composition root + window)** | Phase 1 focus test with the real window **PASS** (2026-11-20). Phase 2: three-page demo template, `navigate` command, sidebar side remembered in `prefs.json`, `app.quit` and a system tray `Quit` — pending the Windows test of `v0.2.0`. Phase 3: templates in `%APPDATA%\plinth\templates` (seeded once with `wow-default-keys.yaml` and `wow-demo.yaml`, never overwritten), started with the last chosen one, picked from the tray's `Templates` submenu — pending the Windows test of `v0.3.0` |
+| **`plinth-tauri` (composition root + window)** | Phase 1 focus test with the real window **PASS** (2026-11-20). Phase 2: three-page demo template, `navigate` command, sidebar side remembered in `prefs.json`, `app.quit` and a system tray `Quit`. Phase 3: templates in `%APPDATA%\plinth\templates` (seeded once with `wow-default-keys.yaml` and `wow-demo.yaml`, never overwritten), started with the last chosen one, picked from the tray's `Templates` submenu. Phases 2 and 3 tested together with `v0.3.0` against WoW: **PASS** (2026-11-24), with one open defect (see section 2) |
 | React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store. Phase 3: redraws when the template changes from the tray; 28 Vitest tests green |
 
 Current branch: `feat/wow-literal-keys` (contains all the work so far, on top of `feat/panel-ui`; `main` is behind and nothing has been merged into it yet).
@@ -29,6 +29,7 @@ Current branch: `feat/wow-literal-keys` (contains all the work so far, on top of
 | N2 key reaches a native app | Linux | **PASS** — delivered to the focused window, across workspaces |
 | N4 **focus test (R1)** | Windows | **PASS** (2026-11-20) — WoW kept focus while the spike window was clicked, during movement; `M` opened the world map |
 | N5 focus test with the real window | Windows | **PASS** (2026-11-20) — WoW kept focus while `World map` was clicked in `plinth-tauri.exe`, during movement; the map opened |
+| Phases 2 and 3 (`v0.3.0`) | Windows | **PASS** (2026-11-24) — with the mouse: swipe between pages, a swipe starting on a button changes page without pressing it, the lock blocks swipe and the panel's `Quit`, the side is remembered; every button of `wow-default-keys` works, including `Shift+2`/`Shift+1` and the `[c, b]` macro (both windows open); the templates folder is seeded, the tray's `Templates` switches template, the last choice is remembered, a broken template shows as `(invalid)` and the panel still opens |
 
 Conditions of the N4 run: a single monitor (the spike window floated over WoW in Windowed
 (Fullscreen) mode), a **mouse click** rather than a touch, and the spike's default position.
@@ -40,6 +41,15 @@ and the *focus* risk (R1) — can the panel be clicked without stealing keyboard
 game? — is retired with `WS_EX_NOACTIVATE`, first with the Win32 spike (N4) and then with the
 real Tauri + WebView2 window (N5). Still to confirm: the same behaviour with a real **touch** on
 the touchscreen (Windows handles touch input as its own event before turning it into a click).
+
+**Open after the `v0.3.0` test:**
+
+- A swipe only starts on top of a button. Starting from the empty part of the page selects the
+  buttons' text instead. The likely cause, not yet confirmed, is that `ui/` has no CSS: the
+  draggable area only covers the buttons and nothing prevents text selection.
+- The tray is part of the Windows shell. With WoW in Windowed (Fullscreen) the taskbar is
+  hidden, so picking a template from the tray means leaving the game and clicking back into it.
+  The panel itself still never takes focus.
 
 ## 3. Running the focus test on Windows
 
@@ -169,9 +179,9 @@ The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 
 0. ~~Run the focus test against WoW~~ — **done, PASS** (2026-11-20, section 2).
 1. ~~Minimal `plinth-tauri` and the focus test with the real window~~ — **done, PASS** (2026-11-20, N5).
-2. ~~UI: swipe pages, left/right sidebar, lock, quit~~ — **done**, pending the Windows test of `v0.2.0`.
+2. ~~UI: swipe pages, left/right sidebar, lock, quit~~ — **done, PASS** (2026-11-24, with `v0.3.0`).
 3. ~~WoW: literal keys and macros in templates, real templates, manual game selection~~ —
-   **done**, pending the Windows test of `v0.3.0`. The template with the author's own key
+   **done, PASS** (2026-11-24, `v0.3.0`). The template with the author's own key
    bindings comes later, by editing a file in the templates folder.
 4. **Next:** packaging, docs, license, public repo — end of MVP.
 5. Star Citizen as second game: export real keybinds and feed `keybinds_sc`, live data.
