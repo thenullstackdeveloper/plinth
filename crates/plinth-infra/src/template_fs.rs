@@ -11,10 +11,12 @@ use std::path::Path;
 
 use plinth_application::{TemplateError, TemplateSource};
 use plinth_domain::{
-    ActionCatalog, Component, ComponentId, ComponentPosition, Page, SchemaVersion, Sidebar,
-    SidebarSide, Template, TemplateMetadata, VisualProps,
+    Action, ActionCatalog, Component, ComponentId, ComponentPosition, KeyMacro, Page,
+    SchemaVersion, Sidebar, SidebarSide, Template, TemplateMetadata, VisualProps,
 };
 use serde_json::Value;
+
+use crate::key_names::parse_chord;
 
 /// The JSON Schema is embedded in the binary so the adapter is self-contained.
 const SCHEMA_SRC: &str = include_str!("../../../schema/plinth.template.schema.json");
@@ -117,9 +119,14 @@ impl FsTemplateSource {
             label: opt_str(node, "label"),
             icon: opt_str(node, "icon"),
         };
-        // Check 2: the legality authority is the domain.
-        let action_raw = str_field(node, "action")?;
-        let action = self.catalog.resolve(&action_raw).map_err(domain_err)?;
+        let action = match node.get("keys") {
+            Some(keys) => Action::Keys(map_keys(keys)?),
+            None => {
+                // Check 2: the legality authority is the domain.
+                let action_raw = str_field(node, "action")?;
+                self.catalog.resolve(&action_raw).map_err(domain_err)?
+            }
+        };
 
         Ok(Component {
             id,
@@ -136,6 +143,24 @@ impl TemplateSource for FsTemplateSource {
             .map_err(|e| TemplateError(format!("could not read `{reference}`: {e}")))?;
         self.load_str(&yaml)
     }
+}
+
+/// `keys` is one step (a text) or a list of steps; the schema has already
+/// checked its shape, the domain checks its length.
+fn map_keys(node: &Value) -> Result<KeyMacro, TemplateError> {
+    let steps = match node {
+        Value::String(step) => vec![parse_chord(step)?],
+        Value::Array(items) => items
+            .iter()
+            .map(|item| {
+                item.as_str()
+                    .ok_or_else(|| TemplateError("a `keys` step must be text".into()))
+                    .and_then(parse_chord)
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        _ => return Err(TemplateError("`keys` must be text or a list".into())),
+    };
+    KeyMacro::new(steps).map_err(domain_err)
 }
 
 fn domain_err(e: plinth_domain::DomainError) -> TemplateError {
@@ -163,7 +188,7 @@ fn u16_field(node: &Value, key: &str) -> Result<u16, TemplateError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use plinth_domain::ActionId;
+    use plinth_domain::{ActionId, ScanCode};
 
     fn catalog() -> ActionCatalog {
         ActionCatalog::from_actions([ActionId::new("v_eject")])
@@ -223,5 +248,103 @@ sidebar: { default_side: right, components: [] }
 "#;
         let src = FsTemplateSource::new(catalog()).unwrap();
         assert!(src.load_str(bad).is_err());
+    }
+    /// A one-page template whose only component carries `component_body`
+    /// (everything but `id` and `position`).
+    fn with_component(component_body: &str) -> String {
+        format!(
+            r#"
+schema_version: "1"
+metadata: {{ game: WoW, version: "1", author: dev }}
+pages:
+  - components:
+      - id: btn
+        position: {{ row: 0, col: 0 }}
+        {component_body}
+sidebar: {{ default_side: right, components: [] }}
+"#
+        )
+    }
+
+    fn keys_of(template: &Template) -> KeyMacro {
+        match &template.pages()[0].components()[0].action {
+            Action::Keys(keys) => keys.clone(),
+            other => panic!("expected Action::Keys, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn loads_keys_text_and_list() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+
+        let text = src.load_str(&with_component(r#"keys: "shift+1""#)).unwrap();
+        let keys = keys_of(&text);
+        let chord = &keys.steps()[0];
+        assert_eq!(chord.modifiers(), &[ScanCode::new(42)]);
+        assert_eq!(chord.key(), ScanCode::new(2));
+
+        let list = src
+            .load_str(&with_component(r#"keys: ["c", "b"]"#))
+            .unwrap();
+        let steps: Vec<_> = keys_of(&list).steps().iter().map(|c| c.key()).collect();
+        assert_eq!(steps, vec![ScanCode::new(46), ScanCode::new(48)]);
+    }
+
+    #[test]
+    fn rejects_action_and_keys_together() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let body = "action: \"v_eject\"\n        keys: \"m\"";
+        let err = src.load_str(&with_component(body)).unwrap_err();
+        assert!(err.0.contains("does not satisfy the schema"), "{}", err.0);
+    }
+
+    #[test]
+    fn rejects_component_without_action_or_keys() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src
+            .load_str(&with_component(r#"label: "Nothing""#))
+            .unwrap_err();
+        assert!(err.0.contains("does not satisfy the schema"), "{}", err.0);
+    }
+
+    #[test]
+    fn rejects_empty_keys_list() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src.load_str(&with_component("keys: []")).unwrap_err();
+        assert!(err.0.contains("does not satisfy the schema"), "{}", err.0);
+    }
+
+    #[test]
+    fn rejects_empty_keys_text() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src.load_str(&with_component(r#"keys: """#)).unwrap_err();
+        assert!(err.0.contains("does not satisfy the schema"), "{}", err.0);
+    }
+
+    #[test]
+    fn rejects_seventeen_keys() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let sixteen = format!("keys: [{}]", vec!["\"m\""; 16].join(", "));
+        assert!(src.load_str(&with_component(&sixteen)).is_ok());
+        let seventeen = format!("keys: [{}]", vec!["\"m\""; 17].join(", "));
+        // The schema refuses it first; the domain limit backs it up.
+        let err = src.load_str(&with_component(&seventeen)).unwrap_err();
+        assert!(err.0.contains("does not satisfy the schema"), "{}", err.0);
+    }
+
+    #[test]
+    fn rejects_unknown_key_name_in_a_template() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src.load_str(&with_component(r#"keys: "up""#)).unwrap_err();
+        assert!(err.0.contains("`up`"), "{}", err.0);
+    }
+
+    #[test]
+    fn rejects_repeated_modifier_in_a_template() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src
+            .load_str(&with_component(r#"keys: "shift+shift+1""#))
+            .unwrap_err();
+        assert!(err.0.contains("twice"), "{}", err.0);
     }
 }

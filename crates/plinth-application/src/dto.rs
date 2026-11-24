@@ -14,6 +14,8 @@ pub enum ActionKind {
     App,
     /// Game action: the UI only knows it "does something in the game".
     Game,
+    /// Literal keys from the template. Like `Game`, the UI never sees which.
+    Keys,
 }
 
 /// A component ready to render.

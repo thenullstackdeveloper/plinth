@@ -15,8 +15,8 @@ pub use action::{Action, ActionId, AppAction, GameAction};
 pub use catalog::ActionCatalog;
 pub use error::DomainError;
 pub use key::{
-    ComponentPosition, KeyBinding, KeySequence, KeyStep, KeyStepKind, ScanCode, SchemaVersion,
-    SidebarSide, VisualProps,
+    ComponentPosition, KeyBinding, KeyChord, KeyMacro, KeySequence, KeyStep, KeyStepKind, ScanCode,
+    SchemaVersion, SidebarSide, VisualProps,
 };
 pub use runtime::{NavDirection, RuntimeState};
 pub use template::{Component, ComponentId, Page, Sidebar, Template, TemplateMetadata};
@@ -81,6 +81,60 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(seq.steps().len(), 2);
+    }
+
+    fn chords(n: usize) -> Vec<KeyChord> {
+        (0..n)
+            .map(|_| KeyChord::single(ScanCode::new(30)))
+            .collect()
+    }
+
+    #[test]
+    fn key_macro_rejects_empty() {
+        assert_eq!(
+            KeyMacro::new(vec![]).unwrap_err(),
+            DomainError::EmptyKeySequence
+        );
+    }
+
+    #[test]
+    fn key_macro_rejects_seventeen_steps() {
+        assert_eq!(
+            KeyMacro::new(chords(17)).unwrap_err(),
+            DomainError::MacroTooLong { len: 17, max: 16 }
+        );
+    }
+
+    #[test]
+    fn key_macro_accepts_sixteen_steps() {
+        let keys = KeyMacro::new(chords(16)).unwrap();
+        assert_eq!(keys.steps().len(), KeyMacro::MAX_STEPS);
+    }
+
+    #[test]
+    fn chord_rejects_repeated_modifier() {
+        let shift = ScanCode::new(42);
+        assert_eq!(
+            KeyChord::new(vec![shift, shift], ScanCode::new(2)).unwrap_err(),
+            DomainError::InvalidChord { code: 42 }
+        );
+    }
+
+    #[test]
+    fn chord_rejects_key_equal_to_modifier() {
+        let shift = ScanCode::new(42);
+        assert_eq!(
+            KeyChord::new(vec![shift], shift).unwrap_err(),
+            DomainError::InvalidChord { code: 42 }
+        );
+    }
+
+    #[test]
+    fn chord_keeps_modifiers_in_order() {
+        let chord =
+            KeyChord::new(vec![ScanCode::new(29), ScanCode::new(42)], ScanCode::new(2)).unwrap();
+        assert_eq!(chord.modifiers(), &[ScanCode::new(29), ScanCode::new(42)]);
+        assert_eq!(chord.key(), ScanCode::new(2));
     }
 
     #[test]

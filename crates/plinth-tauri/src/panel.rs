@@ -16,8 +16,11 @@ use serde::{Deserialize, Serialize};
 /// The phase 1 template: one page with the WoW world map button.
 pub const WOW_PHASE1_TEMPLATE: &str = include_str!("../templates/wow-phase1.yaml");
 
-/// The demo template the app loads: three pages of default WoW keys.
+/// The phase 2 demo: three pages of semantic WoW actions.
 pub const WOW_DEMO_TEMPLATE: &str = include_str!("../templates/wow-demo.yaml");
+
+/// The template the app starts with: WoW's default keys as literal keys.
+pub const WOW_DEFAULT_KEYS_TEMPLATE: &str = include_str!("../templates/wow-default-keys.yaml");
 
 /// A page change requested by the UI (a swipe).
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -71,7 +74,7 @@ pub struct PageViewDto {
 pub struct ComponentDto {
     pub id: String,
     pub label: Option<String>,
-    /// `"game"` or `"app"`.
+    /// `"game"`, `"app"` or `"keys"`.
     pub action_kind: &'static str,
     /// The app action a component triggers (`"toggle_lock"`, …), or `None`
     /// for a game action. Lets the UI tell the lock button apart.
@@ -194,13 +197,17 @@ where
         &self.config
     }
 
+    pub fn clock(&self) -> &C {
+        &self.clock
+    }
+
     fn component_dto(&self, view: ComponentView) -> ComponentDto {
         let app_action = self
             .template
             .find_component(&ComponentId::new(view.id.as_str()))
             .and_then(|component| match &component.action {
                 Action::App(app) => Some(app_action_name(app)),
-                Action::Game(_) => None,
+                Action::Game(_) | Action::Keys(_) => None,
             });
         ComponentDto {
             id: view.id,
@@ -208,6 +215,7 @@ where
             action_kind: match view.action_kind {
                 ActionKind::Game => "game",
                 ActionKind::App => "app",
+                ActionKind::Keys => "keys",
             },
             app_action,
         }
@@ -404,5 +412,57 @@ mod tests {
         let mut panel = panel_with(WOW_DEMO_TEMPLATE);
         panel.press("lock").unwrap();
         assert!(matches!(panel.press("quit"), Err(PanelError::Blocked(_))));
+    }
+    // --- The default-keys template (literal keys) ---
+
+    #[test]
+    fn default_keys_template_has_three_pages() {
+        let view = panel_with(WOW_DEFAULT_KEYS_TEMPLATE).render();
+        let sizes: Vec<usize> = view.pages.iter().map(|p| p.components.len()).collect();
+        assert_eq!(sizes, vec![6, 6, 3]);
+        assert_eq!(view.pages[2].components[2].id, "char_and_bags");
+    }
+
+    #[test]
+    fn pressing_char_and_bags_emits_c_then_b() {
+        let mut panel = panel_with(WOW_DEFAULT_KEYS_TEMPLATE);
+        panel.press("char_and_bags").unwrap();
+        assert_eq!(
+            panel.input().recorded(),
+            vec![
+                KeyEvent::down(ScanCode(46)),
+                KeyEvent::up(ScanCode(46)),
+                KeyEvent::down(ScanCode(48)),
+                KeyEvent::up(ScanCode(48)),
+            ]
+        );
+        assert_eq!(
+            panel.clock().recorded_sleeps(),
+            vec![std::time::Duration::from_millis(30)]
+        );
+    }
+
+    #[test]
+    fn pressing_bar_page_2_sends_shift_2() {
+        let mut panel = panel_with(WOW_DEFAULT_KEYS_TEMPLATE);
+        panel.press("bar_page_2").unwrap();
+        assert_eq!(
+            panel.input().recorded(),
+            vec![
+                KeyEvent::down(ScanCode(42)),
+                KeyEvent::down(ScanCode(3)),
+                KeyEvent::up(ScanCode(3)),
+                KeyEvent::up(ScanCode(42)),
+            ]
+        );
+    }
+
+    #[test]
+    fn keys_component_renders_as_keys() {
+        let view = panel_with(WOW_DEFAULT_KEYS_TEMPLATE).render();
+        let first = &view.pages[0].components[0];
+        assert_eq!(first.id, "action_1");
+        assert_eq!(first.action_kind, "keys");
+        assert_eq!(first.app_action, None);
     }
 }

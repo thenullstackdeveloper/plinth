@@ -13,13 +13,13 @@ pub mod panel;
 pub mod tray;
 pub mod window;
 
-use panel::{Panel, WOW_DEMO_TEMPLATE};
+use panel::{Panel, WOW_DEFAULT_KEYS_TEMPLATE};
 
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let panel: commands::AppPanel = Panel::new(
-                WOW_DEMO_TEMPLATE,
+                WOW_DEFAULT_KEYS_TEMPLATE,
                 StaticKeybindProvider::wow_defaults(),
                 commands::platform_sender(),
                 SystemClock::new(),

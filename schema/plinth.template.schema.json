@@ -54,7 +54,8 @@
     },
     "component": {
       "type": "object",
-      "required": ["id", "position", "action"],
+      "required": ["id", "position"],
+      "oneOf": [{ "required": ["action"] }, { "required": ["keys"] }],
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "minLength": 1 },
@@ -71,6 +72,18 @@
           "type": "string",
           "minLength": 1,
           "description": "Identifier resolvable by the catalog: 'app.*' for app actions, or a semantic game ID."
+        },
+        "keys": {
+          "description": "Literal keys sent on a tap: one step ('m', 'shift+1') or a list of up to 16 steps fired in order. A step is 'mod+...+key' with shift, ctrl or alt as modifiers.",
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          ]
         },
         "label": { "type": "string" },
         "icon": { "type": "string" }

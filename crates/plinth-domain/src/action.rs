@@ -1,4 +1,4 @@
-//! The `Action` type and its two categories, separated by design.
+//! The `Action` type and its three categories, separated by design.
 //!
 //! Non-negotiable security rule (see `docs/architecture.md`, security boundary):
 //! **there is no `Raw(String)` variant**. "Run an arbitrary command" is
@@ -6,6 +6,8 @@
 //! anything outside this closed catalog.
 
 use std::fmt;
+
+use crate::key::KeyMacro;
 
 /// Opaque semantic identifier of a game action (e.g. `"v_target_lock"`).
 /// **The domain does not interpret it**: it is game-agnostic. The legality of an
@@ -71,11 +73,15 @@ impl fmt::Display for GameAction {
     }
 }
 
-/// The only two action categories. The split by type guarantees, by design, that
-/// an app button never injects keys and a game button never mutates state
-/// (enforced by `ExecuteAction` in the application layer).
+/// The only three action categories. The split by type guarantees, by design,
+/// that an app button never injects keys and a key-sending button never
+/// mutates state (enforced by `ExecuteAction` in the application layer).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     App(AppAction),
+    /// A semantic game action, resolved to keys by the game's provider.
     Game(GameAction),
+    /// Literal keys written in the template (`shift+1`, `[c, b]`): sent as
+    /// they are, without a catalog or a provider. Still nothing but key codes.
+    Keys(KeyMacro),
 }

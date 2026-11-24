@@ -36,6 +36,14 @@ pub enum DomainError {
     #[error("empty key sequence")]
     EmptyKeySequence,
 
+    /// A literal macro longer than a single tap may fire.
+    #[error("macro too long: {len} steps, max {max}")]
+    MacroTooLong { len: usize, max: usize },
+
+    /// A key code appears twice in one chord (`shift+shift+1`).
+    #[error("key {code} appears twice in a chord")]
+    InvalidChord { code: u16 },
+
     /// A component that does not exist in the template was referenced.
     #[error("unknown component: `{0}`")]
     UnknownComponent(String),

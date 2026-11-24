@@ -16,6 +16,8 @@ use crate::ports::{
 #[derive(Default)]
 pub struct FakeInputSender {
     pub events: RefCell<Vec<KeyEvent>>,
+    /// One entry per `emit` call, to tell one batch from several.
+    pub batches: RefCell<Vec<Vec<KeyEvent>>>,
 }
 
 impl FakeInputSender {
@@ -26,11 +28,17 @@ impl FakeInputSender {
     pub fn recorded(&self) -> Vec<KeyEvent> {
         self.events.borrow().clone()
     }
+
+    /// The events grouped by the `emit` call that sent them.
+    pub fn batches(&self) -> Vec<Vec<KeyEvent>> {
+        self.batches.borrow().clone()
+    }
 }
 
 impl InputSender for FakeInputSender {
     fn emit(&self, events: &[KeyEvent]) -> Result<(), InputError> {
         self.events.borrow_mut().extend_from_slice(events);
+        self.batches.borrow_mut().push(events.to_vec());
         Ok(())
     }
 }

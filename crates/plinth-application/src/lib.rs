@@ -19,7 +19,7 @@ pub use ports::{
 };
 pub use usecases::{
     execute_action, go_to_page, load_template, navigate, query_render_state, refresh_keybinds,
-    switch_sidebar_side, toggle_lock, ActionOutcome, AppError,
+    switch_sidebar_side, toggle_lock, ActionOutcome, AppError, MACRO_STEP_GAP,
 };
 
 #[cfg(test)]
@@ -28,8 +28,8 @@ mod tests {
     use crate::testing::*;
     use plinth_domain::{
         Action, ActionCatalog, ActionId, AppAction, Component, ComponentId, ComponentPosition,
-        DomainError, GameAction, KeySequence, KeyStep, Page, RuntimeState, ScanCode, SchemaVersion,
-        Sidebar, SidebarSide, Template, TemplateMetadata, VisualProps,
+        DomainError, GameAction, KeyChord, KeyMacro, KeySequence, KeyStep, Page, RuntimeState,
+        ScanCode, SchemaVersion, Sidebar, SidebarSide, Template, TemplateMetadata, VisualProps,
     };
     use std::time::Duration;
 
@@ -392,5 +392,154 @@ mod tests {
         )
         .unwrap();
         assert_eq!(outcome, ActionOutcome::Continue);
+    }
+    // --- Literal keys (`Action::Keys`) ---
+
+    const KEY_1: ScanCode = ScanCode(2);
+    const KEY_B: ScanCode = ScanCode(48);
+    const KEY_C: ScanCode = ScanCode(46);
+    const KEY_CTRL: ScanCode = ScanCode(29);
+    const KEY_M: ScanCode = ScanCode(50);
+
+    fn keys(steps: Vec<KeyChord>) -> Action {
+        Action::Keys(KeyMacro::new(steps).unwrap())
+    }
+
+    /// One page with three literal-key buttons.
+    fn keys_template() -> Template {
+        let page = Page::new(vec![
+            comp("map", keys(vec![KeyChord::single(KEY_M)])),
+            comp(
+                "chord",
+                keys(vec![
+                    KeyChord::new(vec![KEY_CTRL, KEY_SHIFT], KEY_1).unwrap()
+                ]),
+            ),
+            comp(
+                "sequence",
+                keys(vec![KeyChord::single(KEY_C), KeyChord::single(KEY_B)]),
+            ),
+        ])
+        .unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![comp("lock", Action::App(AppAction::ToggleLock))],
+        };
+        Template::new(meta(), vec![page], sidebar).unwrap()
+    }
+
+    fn press_keys(
+        id: &str,
+        state: &mut RuntimeState,
+        input: &FakeInputSender,
+        clock: &FakeClock,
+    ) -> ActionOutcome {
+        execute_action(
+            &ComponentId::new(id),
+            &keys_template(),
+            state,
+            input,
+            &provider(),
+            clock,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn keys_single_step_emits_down_up() {
+        let (input, clock) = (FakeInputSender::new(), FakeClock::new());
+        press_keys(
+            "map",
+            &mut RuntimeState::new(SidebarSide::Right),
+            &input,
+            &clock,
+        );
+        assert_eq!(
+            input.recorded(),
+            vec![KeyEvent::down(KEY_M), KeyEvent::up(KEY_M)]
+        );
+        assert!(clock.recorded_sleeps().is_empty());
+    }
+
+    #[test]
+    fn keys_chord_wraps_the_key_in_its_modifiers() {
+        let (input, clock) = (FakeInputSender::new(), FakeClock::new());
+        press_keys(
+            "chord",
+            &mut RuntimeState::new(SidebarSide::Right),
+            &input,
+            &clock,
+        );
+        assert_eq!(
+            input.recorded(),
+            vec![
+                KeyEvent::down(KEY_CTRL),
+                KeyEvent::down(KEY_SHIFT),
+                KeyEvent::down(KEY_1),
+                KeyEvent::up(KEY_1),
+                KeyEvent::up(KEY_SHIFT),
+                KeyEvent::up(KEY_CTRL),
+            ]
+        );
+        assert_eq!(input.batches().len(), 1);
+    }
+
+    #[test]
+    fn keys_sequence_sleeps_between_steps_only() {
+        let (input, clock) = (FakeInputSender::new(), FakeClock::new());
+        press_keys(
+            "sequence",
+            &mut RuntimeState::new(SidebarSide::Right),
+            &input,
+            &clock,
+        );
+        assert_eq!(
+            input.recorded(),
+            vec![
+                KeyEvent::down(KEY_C),
+                KeyEvent::up(KEY_C),
+                KeyEvent::down(KEY_B),
+                KeyEvent::up(KEY_B),
+            ]
+        );
+        assert_eq!(input.batches().len(), 2);
+        assert_eq!(clock.recorded_sleeps(), vec![Duration::from_millis(30)]);
+        assert_eq!(MACRO_STEP_GAP, Duration::from_millis(30));
+    }
+
+    #[test]
+    fn keys_are_not_blocked_by_the_lock() {
+        let (input, clock) = (FakeInputSender::new(), FakeClock::new());
+        let mut state = RuntimeState::new(SidebarSide::Right);
+        state.toggle_lock();
+        press_keys("map", &mut state, &input, &clock);
+        assert_eq!(
+            input.recorded(),
+            vec![KeyEvent::down(KEY_M), KeyEvent::up(KEY_M)]
+        );
+    }
+
+    #[test]
+    fn keys_report_continue() {
+        let outcome = press_keys(
+            "sequence",
+            &mut RuntimeState::new(SidebarSide::Right),
+            &FakeInputSender::new(),
+            &FakeClock::new(),
+        );
+        assert_eq!(outcome, ActionOutcome::Continue);
+    }
+
+    #[test]
+    fn keys_render_as_keys_kind() {
+        let render = query_render_state(&keys_template(), &RuntimeState::new(SidebarSide::Right));
+        let map = render.pages[0]
+            .components
+            .iter()
+            .find(|c| c.id == "map")
+            .unwrap();
+        assert_eq!(map.action_kind, ActionKind::Keys);
+        let dump = format!("{render:?}");
+        assert!(!dump.contains("ScanCode") && !dump.contains("KeyChord"));
     }
 }

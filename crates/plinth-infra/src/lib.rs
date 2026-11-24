@@ -8,6 +8,7 @@ pub mod input_log;
 pub mod input_uinput;
 #[cfg(target_os = "windows")]
 pub mod input_windows;
+pub mod key_names;
 pub mod keybinds_sc;
 pub mod keybinds_static;
 pub mod template_fs;

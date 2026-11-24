@@ -2,9 +2,11 @@
 //! outbound ports. The UI layer (in a later phase) calls these entry points; it
 //! never touches the ports or the domain directly.
 
+use std::time::Duration;
+
 use plinth_domain::{
-    Action, AppAction, Component, ComponentId, DomainError, GameAction, KeySequence, KeyStepKind,
-    NavDirection, RuntimeState, Template,
+    Action, AppAction, Component, ComponentId, DomainError, GameAction, KeyMacro, KeySequence,
+    KeyStepKind, NavDirection, RuntimeState, Template,
 };
 
 use crate::dto::{ActionKind, ComponentView, PageView, RenderState};
@@ -27,6 +29,10 @@ pub enum AppError {
     #[error(transparent)]
     Provider(#[from] ProviderError),
 }
+
+/// The pause between two steps of a literal macro, so the game reads each one.
+/// None before the first step or after the last.
+pub const MACRO_STEP_GAP: Duration = Duration::from_millis(30);
 
 /// What the host must do after an action. The engine never closes anything:
 /// it reports a quit and the host decides how to end the app.
@@ -112,6 +118,10 @@ where
             run_sequence(&binding, &component.id, state, input, clock)?;
             Ok(ActionOutcome::Continue)
         }
+        Action::Keys(keys) => {
+            run_macro(keys, input, clock)?;
+            Ok(ActionOutcome::Continue)
+        }
     }
 }
 
@@ -178,6 +188,37 @@ fn run_sequence<I: InputSender, C: Clock>(
     Ok(())
 }
 
+/// Fires a literal macro: each chord in one batch (modifiers down in order,
+/// key down, key up, modifiers up in reverse), with [`MACRO_STEP_GAP`]
+/// between chords. It never reads or writes the runtime state.
+fn run_macro<I: InputSender, C: Clock>(
+    keys: &KeyMacro,
+    input: &I,
+    clock: &C,
+) -> Result<(), AppError> {
+    for (i, chord) in keys.steps().iter().enumerate() {
+        if i > 0 {
+            clock.sleep(MACRO_STEP_GAP);
+        }
+        let mut events: Vec<KeyEvent> = chord
+            .modifiers()
+            .iter()
+            .map(|&code| KeyEvent::down(code))
+            .collect();
+        events.push(KeyEvent::down(chord.key()));
+        events.push(KeyEvent::up(chord.key()));
+        events.extend(
+            chord
+                .modifiers()
+                .iter()
+                .rev()
+                .map(|&code| KeyEvent::up(code)),
+        );
+        input.emit(&events)?;
+    }
+    Ok(())
+}
+
 /// QueryRenderState — projects the current state into a DTO for the UI.
 pub fn query_render_state(template: &Template, state: &RuntimeState) -> RenderState {
     let to_view = |c: &Component| ComponentView {
@@ -189,6 +230,7 @@ pub fn query_render_state(template: &Template, state: &RuntimeState) -> RenderSt
         action_kind: match c.action {
             Action::App(_) => ActionKind::App,
             Action::Game(_) => ActionKind::Game,
+            Action::Keys(_) => ActionKind::Keys,
         },
         toggled: state.toggle_state(&c.id),
     };

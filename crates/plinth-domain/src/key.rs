@@ -91,6 +91,73 @@ impl KeySequence {
     }
 }
 
+/// A literal key with the modifiers held around it (`shift+1`): one step of a
+/// [`KeyMacro`]. The domain does not know which codes are modifiers; it only
+/// guarantees that no code appears twice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyChord {
+    modifiers: Vec<ScanCode>,
+    key: ScanCode,
+}
+
+impl KeyChord {
+    /// Builds a chord. A modifier repeated, or equal to the key, is rejected.
+    pub fn new(modifiers: Vec<ScanCode>, key: ScanCode) -> Result<Self, DomainError> {
+        let mut seen = std::collections::HashSet::new();
+        for code in modifiers.iter().chain(std::iter::once(&key)) {
+            if !seen.insert(*code) {
+                return Err(DomainError::InvalidChord { code: code.get() });
+            }
+        }
+        Ok(Self { modifiers, key })
+    }
+
+    /// A bare key, without modifiers.
+    pub fn single(key: ScanCode) -> Self {
+        Self {
+            modifiers: Vec::new(),
+            key,
+        }
+    }
+
+    /// The modifiers, in the order they are pressed.
+    pub fn modifiers(&self) -> &[ScanCode] {
+        &self.modifiers
+    }
+
+    pub fn key(&self) -> ScanCode {
+        self.key
+    }
+}
+
+/// The literal keys a template binds to a button: a non-empty, bounded list
+/// of chords fired one after the other on a single tap. It never resolves
+/// through a game provider, and it holds nothing but key codes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyMacro(Vec<KeyChord>);
+
+impl KeyMacro {
+    /// The longest macro a single tap may fire.
+    pub const MAX_STEPS: usize = 16;
+
+    pub fn new(steps: Vec<KeyChord>) -> Result<Self, DomainError> {
+        if steps.is_empty() {
+            return Err(DomainError::EmptyKeySequence);
+        }
+        if steps.len() > Self::MAX_STEPS {
+            return Err(DomainError::MacroTooLong {
+                len: steps.len(),
+                max: Self::MAX_STEPS,
+            });
+        }
+        Ok(Self(steps))
+    }
+
+    pub fn steps(&self) -> &[KeyChord] {
+        &self.0
+    }
+}
+
 /// A key resolved from the game's real configuration: the result of
 /// `GameKeybindProvider::resolve`. It is a `KeySequence` already ready to emit.
 pub type KeyBinding = KeySequence;

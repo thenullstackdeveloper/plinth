@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 export type ComponentDto = {
   id: string;
   label: string | null;
-  actionKind: "game" | "app";
+  actionKind: "game" | "app" | "keys";
   /** The app action the component triggers (`"toggle_lock"`, …), or null for a game action. */
   appAction: string | null;
 };
