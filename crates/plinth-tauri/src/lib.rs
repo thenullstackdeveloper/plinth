@@ -3,29 +3,42 @@
 
 use std::sync::Mutex;
 
+use plinth_application::ConfigStore;
 use plinth_infra::clock::SystemClock;
 use plinth_infra::config_fs::FsConfigStore;
 use plinth_infra::keybinds_static::StaticKeybindProvider;
+use plinth_infra::template_dir::TemplateDir;
 use tauri::Manager;
 
 pub mod commands;
 pub mod panel;
+pub mod templates;
 pub mod tray;
 pub mod window;
 
-use panel::{Panel, WOW_DEFAULT_KEYS_TEMPLATE};
+use panel::Panel;
+use templates::{loads_with_wow_catalog, pick_startup_template, BUNDLED_TEMPLATES};
 
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            let dir = TemplateDir::at_default_location()?;
+            if let Err(e) = dir.seed(BUNDLED_TEMPLATES) {
+                eprintln!("plinth: could not seed the templates folder: {e}");
+            }
+            let config = FsConfigStore::at_default_location()?;
+            let last = config.load().ok().and_then(|prefs| prefs.last_template);
+            let startup = pick_startup_template(&dir, last.as_deref(), loads_with_wow_catalog);
             let panel: commands::AppPanel = Panel::new(
-                WOW_DEFAULT_KEYS_TEMPLATE,
+                &startup.yaml,
                 StaticKeybindProvider::wow_defaults(),
                 commands::platform_sender(),
                 SystemClock::new(),
-                FsConfigStore::at_default_location()?,
-            )?;
+                config,
+            )?
+            .named(startup.name);
             app.manage(Mutex::new(panel));
+            app.manage(dir);
             window::build_panel_window(app)?;
             tray::build_tray(app)?;
             Ok(())

@@ -11,5 +11,6 @@ pub mod input_windows;
 pub mod key_names;
 pub mod keybinds_sc;
 pub mod keybinds_static;
+pub mod template_dir;
 pub mod template_fs;
 pub mod window_placement;

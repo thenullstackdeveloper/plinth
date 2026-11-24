@@ -1,4 +1,6 @@
-//! `ConfigStore` on the filesystem (JSON under the XDG config dir).
+//! `ConfigStore` on the filesystem: JSON under `dirs::config_dir()`, which is
+//! `$XDG_CONFIG_HOME` on Linux, `~/Library/Application Support` on macOS and
+//! `%APPDATA%` on Windows.
 
 use std::path::PathBuf;
 
@@ -23,7 +25,7 @@ impl FsConfigStore {
         Self { path }
     }
 
-    /// Default location: `$XDG_CONFIG_HOME/plinth/prefs.json`.
+    /// Default location: `dirs::config_dir()/plinth/prefs.json`.
     pub fn at_default_location() -> Result<Self, ConfigError> {
         let dir = dirs::config_dir()
             .ok_or_else(|| ConfigError("could not determine the config directory".into()))?;

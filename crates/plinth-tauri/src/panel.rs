@@ -89,6 +89,11 @@ where
     S: ConfigStore,
 {
     template: Template,
+    /// The template on screen, by file name; `None` for the embedded one.
+    template_name: Option<String>,
+    /// The template the user last chose, as saved in the prefs. It only
+    /// changes on a switch, so a fallback at startup never overwrites it.
+    last_template: Option<String>,
     state: RuntimeState,
     provider: P,
     input: I,
@@ -116,19 +121,51 @@ where
             .load_str(template_yaml)
             .map_err(|e| PanelError::Template(e.to_string()))?;
         // Saved preferences win over the template; none yet means first launch.
-        let side = config
-            .load()
+        let saved = config.load().ok();
+        let side = saved
+            .as_ref()
             .map(|prefs| prefs.sidebar_side)
             .unwrap_or(template.sidebar().default_side);
+        let last_template = saved.and_then(|prefs| prefs.last_template);
         let state = RuntimeState::new(side);
         Ok(Self {
             template,
+            template_name: None,
+            last_template,
             state,
             provider,
             input,
             clock,
             config,
         })
+    }
+
+    /// Names the template the panel was opened with (its file name).
+    pub fn named(mut self, name: Option<String>) -> Self {
+        self.template_name = name;
+        self
+    }
+
+    /// The file name of the template on screen, if it came from the folder.
+    pub fn template_name(&self) -> Option<&str> {
+        self.template_name.as_deref()
+    }
+
+    /// Replaces the template with `yaml`, chosen by the user as `name`. On
+    /// success the panel starts over on page 0, unlocked, on the same side,
+    /// and the choice is saved; a template that does not load changes nothing.
+    pub fn switch_template(&mut self, name: &str, yaml: &str) -> Result<(), PanelError> {
+        let source = FsTemplateSource::new(self.provider.catalog())
+            .map_err(|e| PanelError::Template(e.to_string()))?;
+        let template = source
+            .load_str(yaml)
+            .map_err(|e| PanelError::Template(format!("`{name}`: {e}")))?;
+        self.template = template;
+        self.state = RuntimeState::new(self.state.sidebar_side());
+        self.template_name = Some(name.to_string());
+        self.last_template = Some(name.to_string());
+        self.save_prefs();
+        Ok(())
     }
 
     pub fn press(&mut self, component_id: &str) -> Result<ActionOutcome, PanelError> {
@@ -143,20 +180,21 @@ where
         )
         .map_err(map_app_error)?;
         if self.state.sidebar_side() != side_before {
-            self.remember_side();
+            self.save_prefs();
         }
         Ok(outcome)
     }
 
-    /// Saves the sidebar side. A failure only means the side is not remembered
-    /// on the next launch, so it is logged and the panel keeps working.
-    fn remember_side(&self) {
+    /// Saves the sidebar side and the template the user chose. A failure only
+    /// means they are not remembered on the next launch, so it is logged and
+    /// the panel keeps working.
+    fn save_prefs(&self) {
         let prefs = Prefs {
             sidebar_side: self.state.sidebar_side(),
-            last_template: None,
+            last_template: self.last_template.clone(),
         };
         if let Err(e) = self.config.save(&prefs) {
-            eprintln!("plinth: could not save the sidebar side: {e}");
+            eprintln!("plinth: could not save the preferences: {e}");
         }
     }
 
@@ -464,5 +502,79 @@ mod tests {
         assert_eq!(first.id, "action_1");
         assert_eq!(first.action_kind, "keys");
         assert_eq!(first.app_action, None);
+    }
+    // --- Switching templates and remembering the chosen one ---
+
+    fn prefs(side: SidebarSide, last: Option<&str>) -> Prefs {
+        Prefs {
+            sidebar_side: side,
+            last_template: last.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn switch_template_resets_page_and_lock_and_keeps_the_side() {
+        let mut panel = panel_with(WOW_DEFAULT_KEYS_TEMPLATE);
+        panel.press("switch_side").unwrap();
+        panel.navigate(NavDirectionDto::Next).unwrap();
+        panel.press("lock").unwrap();
+
+        panel
+            .switch_template("wow-demo.yaml", WOW_DEMO_TEMPLATE)
+            .unwrap();
+
+        let view = panel.render();
+        assert_eq!(view.current_page, 0);
+        assert!(!view.locked);
+        assert_eq!(view.sidebar_side, "left");
+        assert_eq!(view.pages[0].components[0].action_kind, "game");
+        assert_eq!(panel.template_name(), Some("wow-demo.yaml"));
+    }
+
+    #[test]
+    fn switch_template_saves_last_template() {
+        let mut panel = panel_with(WOW_DEFAULT_KEYS_TEMPLATE);
+        panel
+            .switch_template("wow-demo.yaml", WOW_DEMO_TEMPLATE)
+            .unwrap();
+        assert_eq!(
+            panel.config().load().unwrap(),
+            prefs(SidebarSide::Right, Some("wow-demo.yaml"))
+        );
+    }
+
+    #[test]
+    fn switch_to_an_invalid_template_keeps_the_current_one() {
+        let mut panel =
+            panel_with(WOW_DEFAULT_KEYS_TEMPLATE).named(Some("wow-default-keys.yaml".into()));
+        panel.navigate(NavDirectionDto::Next).unwrap();
+
+        let result = panel.switch_template("broken.yaml", "pages: nope");
+
+        assert!(matches!(result, Err(PanelError::Template(_))));
+        assert_eq!(panel.template_name(), Some("wow-default-keys.yaml"));
+        assert_eq!(panel.render().current_page, 1);
+        assert_eq!(panel.config().load().unwrap().last_template, None);
+    }
+
+    #[test]
+    fn switching_side_keeps_the_chosen_template() {
+        let config = InMemoryConfigStore::new(prefs(SidebarSide::Right, Some("mine.yaml")));
+        let mut panel = panel_with_config(WOW_DEFAULT_KEYS_TEMPLATE, config)
+            .named(Some("wow-default-keys.yaml".into()));
+        panel.press("switch_side").unwrap();
+        assert_eq!(
+            panel.config().load().unwrap(),
+            prefs(SidebarSide::Left, Some("mine.yaml"))
+        );
+    }
+
+    #[test]
+    fn a_failed_save_does_not_undo_the_switch() {
+        let mut panel = panel_with_config(WOW_DEFAULT_KEYS_TEMPLATE, FailingConfigStore);
+        assert!(panel
+            .switch_template("wow-demo.yaml", WOW_DEMO_TEMPLATE)
+            .is_ok());
+        assert_eq!(panel.template_name(), Some("wow-demo.yaml"));
     }
 }
