@@ -72,11 +72,15 @@ Composition root: wires the concrete adapters into the use cases and exposes thi
 `#[tauri::command]` handlers (deserialize → use case → serialize). The React UI lives beyond the
 boundary and **only sends intent, never keys**.
 
-## Two action categories
+## Three action categories
 
-- **Game actions** → emit keys to the game (go through the OS input layer).
-- **App actions** → navigate, toggle the lock, switch the sidebar side. They **never touch the
-  game**; they live in the runtime and are safe by definition.
+- **Game actions** → a semantic action resolved to keys by the game's keybind provider; they emit
+  keys to the game through the OS input layer.
+- **Literal keys** → a key, a chord (`shift+1`) or a macro of up to 16 steps written in the
+  template (`keys`). They emit exactly those keys, without the catalog or a provider, and hold
+  nothing but key codes.
+- **App actions** → navigate, toggle the lock, switch the sidebar side, quit. They **never touch
+  the game**; they live in the runtime and are safe by definition.
 
 ## Security boundary (closed catalog)
 

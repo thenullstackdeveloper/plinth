@@ -36,3 +36,5 @@ ui/playwright-report/
 # Storybook output
 ui/storybook-static/
 ui/debug-storybook.log
+# Vitest report output (e.g. --reporter=json)
+ui/.vitest/
