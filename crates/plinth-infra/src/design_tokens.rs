@@ -1048,4 +1048,19 @@ mod tests {
             assert_contrast(&catalog, "color.button.border", bg, 3.0);
         }
     }
+
+    #[test]
+    fn layout_tokens_exist_in_tokens_json() {
+        let catalog = embedded_catalog().unwrap();
+        for path in plinth_domain::LAYOUT_TOKENS {
+            let spec = catalog
+                .spec(path)
+                .unwrap_or_else(|| panic!("`{path}` is missing from tokens.json"));
+            assert_eq!(
+                spec.default.kind(),
+                TokenKind::Dimension,
+                "`{path}` must be a dimension"
+            );
+        }
+    }
 }

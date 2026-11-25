@@ -47,10 +47,11 @@ mod tests {
         }
     }
 
-    fn comp(id: &str, action: Action) -> Component {
+    /// A component in column `col` of row 0: each page button has its own cell.
+    fn comp(id: &str, col: u16, action: Action) -> Component {
         Component {
             id: ComponentId::new(id),
-            position: ComponentPosition { row: 0, col: 0 },
+            position: ComponentPosition { row: 0, col },
             visual: VisualProps {
                 label: Some(id.to_string()),
                 icon: None,
@@ -67,17 +68,18 @@ mod tests {
     /// an app button (next/lock). Sidebar with a lock.
     fn template() -> Template {
         let page0 = Page::new(vec![
-            comp("lock_target", Action::Game(target_lock())),
+            comp("lock_target", 0, Action::Game(target_lock())),
             comp(
                 "shield",
+                1,
                 Action::Game(GameAction(ActionId::new("v_toggle_shield"))),
             ),
         ])
         .unwrap();
-        let page1 = Page::new(vec![comp("next", Action::App(AppAction::NextPage))]).unwrap();
+        let page1 = Page::new(vec![comp("next", 0, Action::App(AppAction::NextPage))]).unwrap();
         let sidebar = Sidebar {
             default_side: SidebarSide::Right,
-            components: vec![comp("lock", Action::App(AppAction::ToggleLock))],
+            components: vec![comp("lock", 0, Action::App(AppAction::ToggleLock))],
         };
         Template::new(meta(), vec![page0, page1], sidebar).unwrap()
     }
@@ -166,6 +168,7 @@ mod tests {
         // Build a template with a button pointing at v_unbound.
         let page = Page::new(vec![comp(
             "eject",
+            0,
             Action::Game(GameAction(ActionId::new("v_unbound"))),
         )])
         .unwrap();
@@ -336,12 +339,12 @@ mod tests {
 
     /// The 2-page template with a quit button in the sidebar.
     fn template_with_quit() -> Template {
-        let page = Page::new(vec![comp("lock_target", Action::Game(target_lock()))]).unwrap();
+        let page = Page::new(vec![comp("lock_target", 0, Action::Game(target_lock()))]).unwrap();
         let sidebar = Sidebar {
             default_side: SidebarSide::Right,
             components: vec![
-                comp("lock", Action::App(AppAction::ToggleLock)),
-                comp("quit", Action::App(AppAction::Quit)),
+                comp("lock", 0, Action::App(AppAction::ToggleLock)),
+                comp("quit", 0, Action::App(AppAction::Quit)),
             ],
         };
         Template::new(meta(), vec![page], sidebar).unwrap()
@@ -410,22 +413,24 @@ mod tests {
     /// One page with three literal-key buttons.
     fn keys_template() -> Template {
         let page = Page::new(vec![
-            comp("map", keys(vec![KeyChord::single(KEY_M)])),
+            comp("map", 0, keys(vec![KeyChord::single(KEY_M)])),
             comp(
                 "chord",
+                1,
                 keys(vec![
                     KeyChord::new(vec![KEY_CTRL, KEY_SHIFT], KEY_1).unwrap()
                 ]),
             ),
             comp(
                 "sequence",
+                2,
                 keys(vec![KeyChord::single(KEY_C), KeyChord::single(KEY_B)]),
             ),
         ])
         .unwrap();
         let sidebar = Sidebar {
             default_side: SidebarSide::Right,
-            components: vec![comp("lock", Action::App(AppAction::ToggleLock))],
+            components: vec![comp("lock", 0, Action::App(AppAction::ToggleLock))],
         };
         Template::new(meta(), vec![page], sidebar).unwrap()
     }

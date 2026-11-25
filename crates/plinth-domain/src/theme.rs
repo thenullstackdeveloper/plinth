@@ -215,6 +215,31 @@ impl Theme {
     }
 }
 
+/// The size of the panel window, in pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PanelSize {
+    pub width: u16,
+    pub height: u16,
+}
+
+/// How many rows and columns a page's grid spans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GridSize {
+    pub rows: u32,
+    pub cols: u32,
+}
+
+/// The dimension tokens that decide whether a template fits the panel.
+pub const LAYOUT_TOKENS: [&str; 7] = [
+    "size.touch.min",
+    "size.button.min",
+    "size.sidebar.width",
+    "space.page.gap",
+    "space.page.padding",
+    "space.sidebar.gap",
+    "space.sidebar.padding",
+];
+
 /// The closed set of tokens: a template can only change what is here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThemeCatalog {

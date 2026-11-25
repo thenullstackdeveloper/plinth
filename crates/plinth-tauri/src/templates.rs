@@ -6,7 +6,7 @@ use plinth_infra::keybinds_static::StaticKeybindProvider;
 use plinth_infra::template_dir::TemplateDir;
 use plinth_infra::template_fs::FsTemplateSource;
 
-use crate::panel::{WOW_DEFAULT_KEYS_TEMPLATE, WOW_DEMO_TEMPLATE};
+use crate::panel::{PANEL_SIZE, WOW_DEFAULT_KEYS_TEMPLATE, WOW_DEMO_TEMPLATE};
 
 /// Written into the templates folder the first time it is created.
 pub const BUNDLED_TEMPLATES: &[(&str, &str)] = &[
@@ -25,10 +25,15 @@ pub struct StartupTemplate {
     pub yaml: String,
 }
 
-/// Whether `yaml` loads as a template against the WoW catalog.
+/// Whether `yaml` loads as a template against the WoW catalog and fits the
+/// panel window.
 pub fn loads_with_wow_catalog(yaml: &str) -> bool {
     FsTemplateSource::new(StaticKeybindProvider::wow_defaults().catalog())
-        .map(|source| source.load_str(yaml).is_ok())
+        .map(|source| {
+            source
+                .load_str(yaml)
+                .is_ok_and(|template| template.check_fit(PANEL_SIZE).is_ok())
+        })
         .unwrap_or(false)
 }
 
@@ -149,5 +154,49 @@ mod tests {
             assert!(loads_with_wow_catalog(yaml), "`{name}` must load");
         }
         assert!(!loads_with_wow_catalog("pages: nope\n"));
+    }
+
+    #[test]
+    fn bundled_templates_fit_the_panel() {
+        let source =
+            FsTemplateSource::new(StaticKeybindProvider::wow_defaults().catalog()).unwrap();
+        for (name, yaml) in [
+            ("wow-default-keys.yaml", WOW_DEFAULT_KEYS_TEMPLATE),
+            ("wow-demo.yaml", WOW_DEMO_TEMPLATE),
+            ("wow-phase1.yaml", WOW_PHASE1_TEMPLATE),
+        ] {
+            let template = source.load_str(yaml).unwrap();
+            if let Err(error) = template.check_fit(PANEL_SIZE) {
+                panic!("`{name}` must fit the panel: {error}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_template_that_does_not_fit_is_not_picked_at_startup() {
+        // Eleven buttons in a row: 11·64 + 10·8 + 2·12 = 808px, wider than the
+        // 772px the page has next to the sidebar. It loads, but does not fit.
+        let buttons: String = (0..11)
+            .map(|col| {
+                format!(
+                    "      - {{ id: b{col}, position: {{ row: 0, col: {col} }}, keys: \"m\", label: \"B\" }}\n"
+                )
+            })
+            .collect();
+        let wide = format!(
+            "schema_version: \"1\"\nmetadata: {{ game: WoW, version: \"1\", author: dev }}\npages:\n  - components:\n{buttons}sidebar: {{ default_side: right, components: [] }}\n"
+        );
+        let source =
+            FsTemplateSource::new(StaticKeybindProvider::wow_defaults().catalog()).unwrap();
+        assert!(
+            source.load_str(&wide).is_ok(),
+            "the wide template must load"
+        );
+        assert!(!loads_with_wow_catalog(&wide));
+
+        let (root, dir) = folder("does-not-fit", &[("wide.yaml", &wide)]);
+        let picked = pick_startup_template(&dir, Some("wide.yaml"), loads_with_wow_catalog);
+        assert_eq!(picked.name.as_deref(), Some(DEFAULT_TEMPLATE_NAME));
+        let _ = std::fs::remove_dir_all(root);
     }
 }

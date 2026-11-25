@@ -4,6 +4,8 @@
 
 use tauri::{Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
+use crate::panel::PANEL_SIZE;
+
 pub struct PanelWindowSpec {
     pub label: &'static str,
     pub title: &'static str,
@@ -25,9 +27,9 @@ pub fn panel_window_spec() -> PanelWindowSpec {
         title: "Plinth",
         x: 100.0,
         y: 100.0,
-        // Room for the sidebar and a page; provisional until the touchscreen.
-        width: 900.0,
-        height: 300.0,
+        // Room for the sidebar and a page; every template is checked against it.
+        width: f64::from(PANEL_SIZE.width),
+        height: f64::from(PANEL_SIZE.height),
         decorations: false,
         always_on_top: true,
         focusable: false,
@@ -76,5 +78,12 @@ mod tests {
         assert_eq!(spec.height, 300.0);
         assert_eq!(spec.x, 100.0);
         assert_eq!(spec.y, 100.0);
+    }
+
+    #[test]
+    fn panel_size_matches_the_window_spec() {
+        let spec = panel_window_spec();
+        assert_eq!(spec.width, f64::from(crate::panel::PANEL_SIZE.width));
+        assert_eq!(spec.height, f64::from(crate::panel::PANEL_SIZE.height));
     }
 }

@@ -86,4 +86,26 @@ pub enum DomainError {
     /// letters, digits, spaces and dashes.
     #[error("theme token `{0}` needs a non-empty list of plain font names")]
     InvalidFontFamily(String),
+
+    /// Two components of the same page sit in the same cell of its grid.
+    #[error(
+        "components `{first}` and `{second}` share the cell row {row}, col {col} on page {page}"
+    )]
+    DuplicatePosition {
+        page: usize,
+        row: u16,
+        col: u16,
+        first: String,
+        second: String,
+    },
+
+    /// The grid or the sidebar needs more room than the panel has.
+    #[error(
+        "the theme does not fit the panel: {area} needs {needed}px but only {available}px are available"
+    )]
+    ThemeDoesNotFit {
+        area: &'static str,
+        needed: u32,
+        available: u32,
+    },
 }

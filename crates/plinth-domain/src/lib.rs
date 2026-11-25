@@ -22,7 +22,8 @@ pub use key::{
 pub use runtime::{NavDirection, RuntimeState};
 pub use template::{Component, ComponentId, Page, Sidebar, Template, TemplateMetadata};
 pub use theme::{
-    Hundredths, Srgb8, Theme, ThemeCatalog, TokenKind, TokenPath, TokenRule, TokenSpec, TokenValue,
+    GridSize, Hundredths, PanelSize, Srgb8, Theme, ThemeCatalog, TokenKind, TokenPath, TokenRule,
+    TokenSpec, TokenValue, LAYOUT_TOKENS,
 };
 
 #[cfg(test)]
@@ -297,5 +298,296 @@ mod tests {
         let template = one_page_template().with_theme(theme.clone());
         assert_eq!(template.theme(), &theme);
         assert_eq!(template.theme().iter().count(), 1);
+    }
+
+    // --- Fitting the panel and one cell per button ---
+
+    const PANEL: PanelSize = PanelSize {
+        width: 900,
+        height: 300,
+    };
+
+    fn at(id: &str, row: u16, col: u16) -> Component {
+        Component {
+            position: ComponentPosition { row, col },
+            ..component(id, Action::App(AppAction::NextPage))
+        }
+    }
+
+    /// The layout tokens with the defaults of `design/tokens.json`.
+    fn layout_catalog_without(missing: &str) -> ThemeCatalog {
+        let defaults = [
+            ("size.touch.min", 44),
+            ("size.button.min", 64),
+            ("size.sidebar.width", 128),
+            ("space.page.gap", 8),
+            ("space.page.padding", 12),
+            ("space.sidebar.gap", 8),
+            ("space.sidebar.padding", 8),
+        ];
+        ThemeCatalog::new(
+            defaults
+                .into_iter()
+                .filter(|(path, _)| *path != missing)
+                .map(|(path, px)| TokenSpec {
+                    path: TokenPath::new(path).unwrap(),
+                    default: TokenValue::Px(px),
+                    themeable: true,
+                    rule: TokenRule::Any,
+                })
+                .collect(),
+        )
+        .unwrap()
+    }
+
+    /// A one-page template with the default layout tokens and `overrides`.
+    fn laid_out(
+        page: Vec<Component>,
+        sidebar: Vec<Component>,
+        overrides: &[(&str, u16)],
+    ) -> Template {
+        let theme = layout_catalog_without("")
+            .resolve(
+                overrides
+                    .iter()
+                    .map(|(path, px)| (path.to_string(), TokenValue::Px(*px)))
+                    .collect(),
+            )
+            .unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: sidebar,
+        };
+        Template::new(meta(), vec![Page::new(page).unwrap()], sidebar)
+            .unwrap()
+            .with_theme(theme)
+    }
+
+    fn column(rows: u16) -> Vec<Component> {
+        (0..rows).map(|r| at(&format!("r{r}"), r, 0)).collect()
+    }
+
+    fn row_of(cols: u16) -> Vec<Component> {
+        (0..cols).map(|c| at(&format!("c{c}"), 0, c)).collect()
+    }
+
+    fn sidebar_of(n: usize) -> Vec<Component> {
+        (0..n).map(|i| at(&format!("s{i}"), 0, 0)).collect()
+    }
+
+    #[test]
+    fn grid_size_is_max_plus_one() {
+        let page = Page::new(vec![at("a", 0, 0), at("b", 2, 1), at("c", 1, 4)]).unwrap();
+        assert_eq!(page.grid_size(), GridSize { rows: 3, cols: 5 });
+        let single = Page::new(vec![at("a", 0, 0)]).unwrap();
+        assert_eq!(single.grid_size(), GridSize { rows: 1, cols: 1 });
+    }
+
+    #[test]
+    fn fits_at_the_exact_height() {
+        let tight = [
+            ("size.button.min", 64),
+            ("space.page.gap", 12),
+            ("space.page.padding", 4),
+        ];
+        // 4·64 + 3·12 + 2·4 = 300.
+        assert_eq!(laid_out(column(4), vec![], &tight).check_fit(PANEL), Ok(()));
+        let over = [
+            ("size.button.min", 64),
+            ("space.page.gap", 12),
+            ("space.page.padding", 5),
+        ];
+        assert_eq!(
+            laid_out(column(4), vec![], &over).check_fit(PANEL),
+            Err(DomainError::ThemeDoesNotFit {
+                area: "page grid height",
+                needed: 302,
+                available: 300,
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_a_grid_too_wide() {
+        // 11·64 + 10·8 + 2·12 = 808, and 900 − 128 = 772.
+        let err = laid_out(row_of(11), vec![], &[])
+            .check_fit(PANEL)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            DomainError::ThemeDoesNotFit {
+                area: "page grid width",
+                needed: 808,
+                available: 772,
+            }
+        );
+        assert_eq!(
+            err.to_string(),
+            "the theme does not fit the panel: page grid width needs 808px but only 772px are available"
+        );
+        assert_eq!(laid_out(row_of(10), vec![], &[]).check_fit(PANEL), Ok(()));
+    }
+
+    #[test]
+    fn a_huge_row_is_rejected() {
+        // 60001·64 + 60000·8 + 2·12, in u32 and without a panic.
+        let err = laid_out(vec![at("far", 60000, 0)], vec![], &[])
+            .check_fit(PANEL)
+            .unwrap_err();
+        assert_eq!(
+            err,
+            DomainError::ThemeDoesNotFit {
+                area: "page grid height",
+                needed: 4_320_088,
+                available: 300,
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_a_sidebar_too_tall() {
+        // 6·44 + 5·8 + 2·8 = 320.
+        assert_eq!(
+            laid_out(row_of(1), sidebar_of(6), &[]).check_fit(PANEL),
+            Err(DomainError::ThemeDoesNotFit {
+                area: "sidebar height",
+                needed: 320,
+                available: 300,
+            })
+        );
+    }
+
+    #[test]
+    fn fits_five_sidebar_buttons() {
+        // 5·44 + 4·8 + 2·8 = 268.
+        assert_eq!(
+            laid_out(row_of(1), sidebar_of(5), &[]).check_fit(PANEL),
+            Ok(())
+        );
+        // The same 268px do not fit a panel one pixel shorter.
+        let short = PanelSize {
+            width: 900,
+            height: 267,
+        };
+        assert_eq!(
+            laid_out(row_of(1), sidebar_of(5), &[]).check_fit(short),
+            Err(DomainError::ThemeDoesNotFit {
+                area: "sidebar height",
+                needed: 268,
+                available: 267,
+            })
+        );
+    }
+
+    #[test]
+    fn an_empty_sidebar_fits() {
+        // As in `wow-phase1.yaml`: no sidebar buttons, so no (n − 1) to underflow.
+        assert_eq!(laid_out(row_of(1), vec![], &[]).check_fit(PANEL), Ok(()));
+    }
+
+    #[test]
+    fn rejects_a_sidebar_too_narrow() {
+        // Out of reach of the real catalog (96 − 2·16 ≥ 44), but the rule holds:
+        // the column minus its padding must still take a finger.
+        let narrow = [("size.sidebar.width", 59)];
+        assert_eq!(
+            laid_out(row_of(1), vec![], &narrow).check_fit(PANEL),
+            Err(DomainError::ThemeDoesNotFit {
+                area: "sidebar width",
+                needed: 44,
+                available: 43,
+            })
+        );
+        let enough = [("size.sidebar.width", 60)];
+        assert_eq!(
+            laid_out(row_of(1), vec![], &enough).check_fit(PANEL),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn check_fit_requires_the_layout_tokens() {
+        for missing in LAYOUT_TOKENS {
+            let theme = layout_catalog_without(missing).defaults();
+            let template = one_page_template().with_theme(theme);
+            assert_eq!(
+                template.check_fit(PANEL),
+                Err(DomainError::UnknownToken(missing.to_string())),
+                "`{missing}` must be required"
+            );
+        }
+        assert_eq!(
+            one_page_template().check_fit(PANEL),
+            Err(DomainError::UnknownToken(LAYOUT_TOKENS[0].to_string()))
+        );
+    }
+
+    #[test]
+    fn rejects_two_components_in_the_same_cell() {
+        let first = Page::new(vec![at("a", 0, 0)]).unwrap();
+        let second = Page::new(vec![at("b", 0, 0), at("c", 1, 2), at("d", 1, 2)]).unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![],
+        };
+        let err = Template::new(meta(), vec![first, second], sidebar).unwrap_err();
+        assert_eq!(
+            err,
+            DomainError::DuplicatePosition {
+                page: 1,
+                row: 1,
+                col: 2,
+                first: "c".into(),
+                second: "d".into(),
+            }
+        );
+        assert_eq!(
+            err.to_string(),
+            "components `c` and `d` share the cell row 1, col 2 on page 1"
+        );
+    }
+
+    #[test]
+    fn sidebar_buttons_may_share_a_cell() {
+        // The sidebar is a column ordered by `row`, not a grid.
+        let page = Page::new(vec![at("a", 0, 0)]).unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![at("s0", 0, 0), at("s1", 0, 0)],
+        };
+        assert!(Template::new(meta(), vec![page], sidebar).is_ok());
+    }
+
+    #[test]
+    fn duplicate_ids_are_checked_before_cells() {
+        let page = Page::new(vec![at("dup", 0, 0), at("dup", 0, 0)]).unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![],
+        };
+        assert_eq!(
+            Template::new(meta(), vec![page], sidebar).unwrap_err(),
+            DomainError::DuplicateComponentId("dup".into())
+        );
+    }
+
+    #[test]
+    fn cells_are_checked_before_page_references() {
+        let page = Page::new(vec![
+            Component {
+                position: ComponentPosition { row: 0, col: 0 },
+                ..component("jump", Action::App(AppAction::GoToPage(5)))
+            },
+            at("b", 0, 0),
+        ])
+        .unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![],
+        };
+        assert!(matches!(
+            Template::new(meta(), vec![page], sidebar).unwrap_err(),
+            DomainError::DuplicatePosition { .. }
+        ));
     }
 }

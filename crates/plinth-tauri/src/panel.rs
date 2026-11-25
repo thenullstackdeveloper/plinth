@@ -10,7 +10,8 @@ use plinth_application::{
     ComponentView, ConfigStore, GameKeybindProvider, InputSender, Prefs,
 };
 use plinth_domain::{
-    Action, AppAction, ComponentId, DomainError, NavDirection, RuntimeState, SidebarSide, Template,
+    Action, AppAction, ComponentId, DomainError, NavDirection, PanelSize, RuntimeState,
+    SidebarSide, Template,
 };
 use plinth_infra::template_fs::FsTemplateSource;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,12 @@ pub const WOW_DEMO_TEMPLATE: &str = include_str!("../templates/wow-demo.yaml");
 
 /// The template the app starts with: WoW's default keys as literal keys.
 pub const WOW_DEFAULT_KEYS_TEMPLATE: &str = include_str!("../templates/wow-default-keys.yaml");
+
+/// The size of the panel window. Every template must fit it.
+pub const PANEL_SIZE: PanelSize = PanelSize {
+    width: 900,
+    height: 300,
+};
 
 /// A page change requested by the UI (a swipe).
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -124,6 +131,9 @@ where
         let template = source
             .load_str(template_yaml)
             .map_err(|e| PanelError::Template(e.to_string()))?;
+        template
+            .check_fit(PANEL_SIZE)
+            .map_err(|e| PanelError::Template(e.to_string()))?;
         // Saved preferences win over the template; none yet means first launch.
         let saved = config.load().ok();
         let side = saved
@@ -157,12 +167,16 @@ where
 
     /// Replaces the template with `yaml`, chosen by the user as `name`. On
     /// success the panel starts over on page 0, unlocked, on the same side,
-    /// and the choice is saved; a template that does not load changes nothing.
+    /// and the choice is saved; a template that does not load or does not fit
+    /// the panel changes nothing.
     pub fn switch_template(&mut self, name: &str, yaml: &str) -> Result<(), PanelError> {
         let source = FsTemplateSource::new(self.provider.catalog())
             .map_err(|e| PanelError::Template(e.to_string()))?;
         let template = source
             .load_str(yaml)
+            .map_err(|e| PanelError::Template(format!("`{name}`: {e}")))?;
+        template
+            .check_fit(PANEL_SIZE)
             .map_err(|e| PanelError::Template(format!("`{name}`: {e}")))?;
         self.template = template;
         self.state = RuntimeState::new(self.state.sidebar_side());
@@ -632,5 +646,113 @@ mod tests {
             theme_json(&panel_with(&themed)),
             fixture(SLICE_THEME_FIXTURE)
         );
+    }
+
+    // --- Fitting the panel window ---
+
+    /// The values the UI tests use for the largest theme that still fits.
+    const MAX_THEME_FIXTURE: &str = include_str!("../../../ui/src/testing/fixtures/max-theme.json");
+
+    /// Every size and space token at its maximum, as a template `theme` block.
+    const MAX_THEME_BLOCK: &str = "theme:
+  size.button.min: \"96px\"
+  space.page.gap: \"16px\"
+  space.page.padding: \"24px\"
+  size.sidebar.width: \"240px\"
+  space.sidebar.gap: \"16px\"
+  space.sidebar.padding: \"16px\"
+  size.button.border-width: \"4px\"
+  radius.button: \"24px\"
+  font.size.label: \"28px\"
+  font.weight.label: 900
+  font.line-height.label: 1.6
+  motion.page-transition: \"400ms\"
+  motion.press-feedback: \"200ms\"
+";
+
+    /// The default-keys template with six sidebar buttons: 6·44 + 5·8 + 2·8 =
+    /// 320px, taller than the panel.
+    fn too_tall_template() -> String {
+        let extra: String = (3..6)
+            .map(|row| {
+                format!(
+                    "    - {{ id: extra_{row}, position: {{ row: {row}, col: 0 }}, action: \"app.next_page\", label: \"Extra\" }}\n"
+                )
+            })
+            .collect();
+        format!("{WOW_DEFAULT_KEYS_TEMPLATE}{extra}")
+    }
+
+    #[test]
+    fn panel_new_rejects_a_template_that_does_not_fit() {
+        let result = Panel::new(
+            &too_tall_template(),
+            StaticKeybindProvider::wow_defaults(),
+            FakeInputSender::new(),
+            FakeClock::new(),
+            InMemoryConfigStore::default(),
+        );
+        match result {
+            Err(PanelError::Template(message)) => assert_eq!(
+                message,
+                "the theme does not fit the panel: sidebar height needs 320px but only 300px are available"
+            ),
+            Err(other) => panic!("expected a template error, got {other}"),
+            Ok(_) => panic!("a template that does not fit must not open"),
+        }
+    }
+
+    #[test]
+    fn switch_to_a_template_that_does_not_fit_keeps_the_current_one() {
+        let mut panel =
+            panel_with(WOW_DEFAULT_KEYS_TEMPLATE).named(Some("wow-default-keys.yaml".into()));
+        panel.navigate(NavDirectionDto::Next).unwrap();
+
+        let result = panel.switch_template("tall.yaml", &too_tall_template());
+
+        match result {
+            Err(PanelError::Template(message)) => assert_eq!(
+                message,
+                "`tall.yaml`: the theme does not fit the panel: sidebar height needs 320px but only 300px are available"
+            ),
+            other => panic!("expected a template error, got {other:?}"),
+        }
+        assert_eq!(panel.template_name(), Some("wow-default-keys.yaml"));
+        assert_eq!(panel.render().current_page, 1);
+        assert_eq!(panel.render().sidebar.len(), 3);
+        assert_eq!(panel.config().load().unwrap().last_template, None);
+    }
+
+    #[test]
+    fn max_theme_renders_the_ui_fixture() {
+        let themed = format!("{WOW_DEFAULT_KEYS_TEMPLATE}{MAX_THEME_BLOCK}");
+        assert_eq!(theme_json(&panel_with(&themed)), fixture(MAX_THEME_FIXTURE));
+    }
+
+    #[test]
+    fn max_theme_puts_every_overridden_token_at_its_maximum() {
+        let catalog = plinth_infra::design_tokens::embedded_catalog().unwrap();
+        let (default, max) = (fixture(DEFAULT_THEME_FIXTURE), fixture(MAX_THEME_FIXTURE));
+        let mut changed = 0;
+        for spec in catalog.specs() {
+            let name = plinth_application::theme_css::css_variable(&spec.path);
+            if default[&name] == max[&name] {
+                continue;
+            }
+            changed += 1;
+            let plinth_domain::TokenRule::Range { max: bound, .. } = spec.rule else {
+                panic!("`{}` changed but has no range", spec.path);
+            };
+            let mut at_max = spec.default.clone();
+            match &mut at_max {
+                plinth_domain::TokenValue::Px(n)
+                | plinth_domain::TokenValue::Ms(n)
+                | plinth_domain::TokenValue::FontWeight(n) => *n = bound,
+                plinth_domain::TokenValue::Number(h) => h.0 = bound,
+                _ => panic!("`{}` is not a ranged kind", spec.path),
+            }
+            assert_eq!(max[&name], at_max.to_string(), "`{}`", spec.path);
+        }
+        assert_eq!(changed, 13);
     }
 }
