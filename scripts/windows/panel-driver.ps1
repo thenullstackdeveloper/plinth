@@ -27,8 +27,6 @@
 #
 # The mouse belongs to the script: do not touch it while a run is going, or the moves and clicks
 # land somewhere else.
-# Dot-source this file. Drives the plinth-tauri window with real OS mouse input,
-# captures it, and reports which window holds the foreground (keyboard focus).
 Add-Type -AssemblyName System.Drawing
 if (-not ('PD' -as [type])) {
 Add-Type @'
