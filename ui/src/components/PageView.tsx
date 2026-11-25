@@ -3,7 +3,7 @@ import { useRef } from "react";
 
 import type { ComponentDto, NavDirection } from "../adapters/panelApi";
 import { createDragGuard } from "../dragGuard";
-import { pageTransition } from "../motion";
+import { pageTransition, snapBack } from "../motion";
 import { usePanelStore } from "../store/panelStore";
 import { handleSwipeEnd } from "../swipe";
 
@@ -61,6 +61,9 @@ export function PageView(props: {
             drag={props.locked ? false : "x"}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.2}
+            // No momentum past where the finger let go, and a firm spring back.
+            dragMomentum={false}
+            dragTransition={snapBack}
             onDragStart={() => guard.dragStarted()}
             onDragEnd={(_, info) => {
               guard.dragEnded();
