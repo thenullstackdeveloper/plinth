@@ -24,7 +24,9 @@ use serde_json::Value;
 use crate::design_tokens::embedded_catalog;
 use crate::key_names::parse_chord;
 use crate::strict_yaml;
-use crate::theme_scalars::parse_hex_color;
+use crate::theme_scalars::{
+    parse_font_weight, parse_hex_color, parse_hundredths, parse_ms, parse_px,
+};
 
 /// The JSON Schema is embedded in the binary so the adapter is self-contained.
 const SCHEMA_SRC: &str = include_str!("../../../schema/plinth.template.schema.json");
@@ -133,12 +135,17 @@ impl FsTemplateSource {
         let entries = node
             .as_object()
             .ok_or_else(|| TemplateError("invalid theme: `theme` must be a map".into()))?;
+        // Per entry, in this order: the token exists, a template may change
+        // it, the value parses to its kind; `resolve` then checks the range.
         let mut overrides = Vec::with_capacity(entries.len());
         for (name, raw) in entries {
             let spec = self
                 .theme_catalog
                 .spec(name)
                 .ok_or_else(|| theme_err(DomainError::UnknownToken(name.clone())))?;
+            if !spec.themeable {
+                return Err(theme_err(DomainError::TokenNotThemeable(name.clone())));
+            }
             let expected = spec.default.kind();
             let value = parse_scalar(expected, raw).ok_or_else(|| {
                 theme_err(DomainError::TokenKindMismatch {
@@ -220,15 +227,19 @@ fn theme_err(e: DomainError) -> TemplateError {
     TemplateError(format!("invalid theme: {e}"))
 }
 
-/// A theme value written the one way its kind allows.
+/// A theme value written the one way its kind allows. A font family is never
+/// written in a template: its only token is fixed.
 fn parse_scalar(kind: TokenKind, raw: &Value) -> Option<TokenValue> {
     match kind {
         TokenKind::Color => raw
             .as_str()
             .and_then(parse_hex_color)
             .map(TokenValue::Color),
-        // No other kind can be overridden from a template yet.
-        _ => None,
+        TokenKind::Dimension => raw.as_str().and_then(parse_px).map(TokenValue::Px),
+        TokenKind::Duration => raw.as_str().and_then(parse_ms).map(TokenValue::Ms),
+        TokenKind::FontWeight => parse_font_weight(raw).map(TokenValue::FontWeight),
+        TokenKind::Number => parse_hundredths(raw).map(TokenValue::Number),
+        TokenKind::FontFamily => None,
     }
 }
 
@@ -570,6 +581,152 @@ sidebar: {{ default_side: right, components: [] }}
         assert_eq!(
             err.0,
             r##"invalid theme: theme token `color.button.background` expects a colour like "#1e1e2e""##
+        );
+    }
+
+    // --- Every kind a template can override ---
+
+    #[test]
+    fn template_override_of_each_kind_loads() {
+        use plinth_domain::Hundredths;
+
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let template = src
+            .load_str(&with_theme(&[
+                r##"color.button.text: "#FFFFFF""##,
+                r#"size.button.min: "72px""#,
+                r#"motion.page-transition: "150ms""#,
+                "font.weight.label: 700",
+                "font.line-height.label: 1.35",
+            ]))
+            .unwrap();
+        let theme = template.theme();
+        assert_eq!(theme.get("color.button.text"), Some(&colour(255, 255, 255)));
+        assert_eq!(theme.get("size.button.min"), Some(&TokenValue::Px(72)));
+        assert_eq!(
+            theme.get("motion.page-transition"),
+            Some(&TokenValue::Ms(150))
+        );
+        assert_eq!(
+            theme.get("font.weight.label"),
+            Some(&TokenValue::FontWeight(700))
+        );
+        assert_eq!(
+            theme.get("font.line-height.label"),
+            Some(&TokenValue::Number(Hundredths(135)))
+        );
+
+        let alias = src
+            .load_str(&with_theme(&[r#"font.weight.label: "semi-bold""#]))
+            .unwrap();
+        assert_eq!(
+            alias.theme().get("font.weight.label"),
+            Some(&TokenValue::FontWeight(600))
+        );
+    }
+
+    fn theme_rejection(entries: &[&str]) -> String {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        src.load_str(&with_theme(entries)).unwrap_err().0
+    }
+
+    #[test]
+    fn rejects_out_of_range_dimension() {
+        assert_eq!(
+            theme_rejection(&[r#"size.button.min: "40px""#]),
+            "invalid theme: theme token `size.button.min`: 40px is outside the allowed range 44px to 96px"
+        );
+        assert_eq!(
+            theme_rejection(&[r#"size.sidebar.width: "241px""#]),
+            "invalid theme: theme token `size.sidebar.width`: 241px is outside the allowed range 96px to 240px"
+        );
+    }
+
+    #[test]
+    fn rejects_rem() {
+        assert_eq!(
+            theme_rejection(&[r#"size.button.min: "4rem""#]),
+            r#"invalid theme: theme token `size.button.min` expects a dimension in whole pixels, like "64px""#
+        );
+    }
+
+    #[test]
+    fn rejects_fixed_tokens() {
+        assert_eq!(
+            theme_rejection(&[r##"color.quit.background: "#000000""##]),
+            "invalid theme: theme token `color.quit.background` is fixed and cannot be changed by a template"
+        );
+        assert_eq!(
+            theme_rejection(&[r##"color.quit.text: "#b23a48""##]),
+            "invalid theme: theme token `color.quit.text` is fixed and cannot be changed by a template"
+        );
+        // Fixed comes before kind: no value a template can write is a font
+        // list, and the author still learns the token is fixed.
+        assert_eq!(
+            theme_rejection(&[r#"font.family.label: "Arial""#]),
+            "invalid theme: theme token `font.family.label` is fixed and cannot be changed by a template"
+        );
+    }
+
+    #[test]
+    fn rejects_kind_mismatch() {
+        assert_eq!(
+            theme_rejection(&["size.button.min: 64"]),
+            r#"invalid theme: theme token `size.button.min` expects a dimension in whole pixels, like "64px""#
+        );
+        assert_eq!(
+            theme_rejection(&[r#"motion.page-transition: "0.2s""#]),
+            r#"invalid theme: theme token `motion.page-transition` expects a duration in whole milliseconds, like "200ms""#
+        );
+        assert_eq!(
+            theme_rejection(&[r#"font.weight.label: "Bold""#]),
+            r#"invalid theme: theme token `font.weight.label` expects a font weight from 1 to 1000 or a name like "bold""#
+        );
+        assert_eq!(
+            theme_rejection(&[r#"font.line-height.label: "1.2""#]),
+            "invalid theme: theme token `font.line-height.label` expects a number with at most two decimals, like 1.2"
+        );
+        assert_eq!(
+            theme_rejection(&[r#"color.button.text: "72px""#]),
+            r##"invalid theme: theme token `color.button.text` expects a colour like "#1e1e2e""##
+        );
+    }
+
+    #[test]
+    fn rejects_spaces_semicolons_and_braces() {
+        for value in [
+            r#""64px 1px""#,
+            r#""64px;color:red""#,
+            r#""{64px}""#,
+            r#""64px}""#,
+        ] {
+            let err = theme_rejection(&[&format!("size.button.min: {value}")]);
+            assert!(
+                err.contains("does not satisfy the schema at `/theme/size.button.min`"),
+                "{value}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_more_than_32_entries() {
+        let entries: Vec<String> = (0..33)
+            .map(|i| format!("size.x{i}.min: \"64px\""))
+            .collect();
+        let refs: Vec<&str> = entries.iter().map(String::as_str).collect();
+        let err = theme_rejection(&refs);
+        assert!(
+            err.contains("does not satisfy the schema at `/theme`"),
+            "{err}"
+        );
+        assert!(err.contains("has more than 32 properties"), "{err}");
+    }
+
+    #[test]
+    fn rejects_a_huge_number() {
+        assert_eq!(
+            theme_rejection(&["font.line-height.label: 1000000"]),
+            "invalid theme: theme token `font.line-height.label` expects a number with at most two decimals, like 1.2"
         );
     }
 }
