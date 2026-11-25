@@ -103,6 +103,16 @@ second game = a new implementation of the port, without touching the core.
   without root** (CI-safe).
 - **Infra**: the real uinput adapter is covered by an `#[ignore]` integration test (needs
   `/dev/uinput`), run on the developer's machine, not in CI.
+- **UI** (`ui/`), three layers, none of them using the network:
+  - **Vitest in jsdom** (`pnpm --dir ui test`, project `unit`): the logic without layout, such
+    as the store, the swipe maths and the drag guard, plus the existing component tests.
+  - **Storybook stories as tests** (same command, project `storybook`): every component in
+    `ui/src/components/` has a `*.stories.tsx`, enforced by a unit test. Each story renders in
+    headless Chromium, runs its `play` interaction and must pass axe. The Tauri API is mocked in
+    `ui/.storybook/preview.ts`, and telemetry is off in `ui/.storybook/main.ts`. Browse the
+    stories with `pnpm --dir ui storybook`.
+  - **Playwright e2e** (`pnpm --dir ui e2e`): the built app in Chromium at the window's size
+    with a fake backend, for layout, real mouse swipes and text selection.
 
 Commands: see `README.md` and `docs/input-linux.md`.
 
