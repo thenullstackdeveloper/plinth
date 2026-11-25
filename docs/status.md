@@ -4,20 +4,21 @@ Snapshot of where Plinth stands and how to continue. Development happens on a Ma
 blocks; each finished block is tagged and built on the Windows machine for game testing (see
 `docs/flow/2026-11-20-handoff-windows.md`).
 
-**Last updated:** 2026-11-24
+**Last updated:** 2026-11-25
 
 ## 1. Where the project is
 
 | Area | State |
 |---|---|
-| Hexagonal core (`plinth-domain`, `plinth-application`, `plinth-infra`) | **Done**, fitness test passing (workspace: 109 Rust tests green on macOS) |
-| Template contract (`schema/plinth.template.schema.json`) | Done. Phase 3: a component carries `action` or `keys` (literal keys: `"m"`, `"shift+1"`, or a list of up to 16 steps) |
+| Hexagonal core (`plinth-domain`, `plinth-application`, `plinth-infra`) | **Done**, fitness test passing (workspace: 219 Rust tests green on macOS) |
+| Template contract (`schema/plinth.template.schema.json`) | Done. Phase 3: a component carries `action` or `keys` (literal keys: `"m"`, `"shift+1"`, or a list of up to 16 steps). Design system: an optional `theme` block, and a repeated key anywhere rejects the template |
+| **Design system** (`design/tokens.json`) | **Done on `feat/design-system`**, not yet tested on Windows. 25 DTCG 2025.10 tokens (colours, sizes, spacing, type, motion), embedded in the binary; a template's `theme` overrides the 21 themeable ones within their ranges, and `Quit`'s colours, the 44px touch floor and the font are fixed. A template whose grid or sidebar does not fit 900×300 is rejected, and two buttons in one cell too. How to write a theme and every token's range: [`theming.md`](theming.md), kept in step with the tokens by a test |
 | SC keybind adapter (`keybinds_sc`) | Done for single-key bindings; chords/joystick unsupported (known limitation) |
 | Linux input adapter (`input_uinput`) | Done, validated on real hardware |
 | **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, validated against WoW (2026-11-20) |
 | **Windows focus spike (`spike_win.exe`)** | **Run against WoW: PASS** (2026-11-20) |
 | **`plinth-tauri` (composition root + window)** | Phase 1 focus test with the real window **PASS** (2026-11-20). Phase 2: three-page demo template, `navigate` command, sidebar side remembered in `prefs.json`, `app.quit` and a system tray `Quit`. Phase 3: templates in `%APPDATA%\plinth\templates` (seeded once with `wow-default-keys.yaml` and `wow-demo.yaml`, never overwritten), started with the last chosen one, picked from the tray's `Templates` submenu. Phases 2 and 3 tested together with `v0.3.0` against WoW: **PASS** (2026-11-24), with one open defect (see section 2) |
-| React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store. Phase 3: redraws when the template changes from the tray. Tests: 30 Vitest tests in jsdom, 16 stories in Storybook 10.6.8, run as tests in headless Chromium with axe inside `pnpm --dir ui test` (every component has its stories; `pnpm --dir ui storybook` to browse them) and 8 Playwright e2e |
+| React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store. Phase 3: redraws when the template changes from the tray. Design system: buttons on a CSS grid by their `row`/`col`, the sidebar a column as wide as its token, touch styling from the tokens (border, radius, type, pressed and toggled colours), `Quit` with fixed colours, and the page change timed by `motion.page-transition`; the theme arrives as CSS custom properties set on `.panel`. Tests: 38 Vitest tests in jsdom, 26 stories in Storybook 10.6.8, run as tests in headless Chromium with axe inside `pnpm --dir ui test` (every component has its stories; `pnpm --dir ui storybook` to browse them) and 17 Playwright e2e, all passing with the network blocked |
 
 `main` holds all the work so far (fast-forwarded on 2026-11-24); each new piece of work starts on a short branch from `main`.
 
@@ -44,9 +45,9 @@ the touchscreen (Windows handles touch input as its own event before turning it 
 
 **Open after the `v0.3.0` test:**
 
-- A swipe only starts on top of a button. Starting from the empty part of the page selects the
-  buttons' text instead. The likely cause, not yet confirmed, is that `ui/` has no CSS: the
-  draggable area only covers the buttons and nothing prevents text selection.
+- A swipe only started on top of a button, and starting from the empty part of the page
+  selected the buttons' text. Fixed on `main` (the draggable surface fills the page and text
+  selection is off), covered by e2e; still to confirm on Windows, with the design system test.
 - The tray is part of the Windows shell. With WoW in Windowed (Fullscreen) the taskbar is
   hidden, so picking a template from the tray means leaving the game and clicking back into it.
   The panel itself still never takes focus.
@@ -182,6 +183,8 @@ The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 3. ~~WoW: literal keys and macros in templates, real templates, manual game selection~~ —
    **done, PASS** (2026-11-24, `v0.3.0`). The template with the author's own key
    bindings comes later, by editing a file in the templates folder.
+   Design system (tokens, template themes, touch layout): **done on `feat/design-system`**,
+   waiting for the Windows test ("Prueba del diseño" in `docs/flow/2026-11-20-handoff-windows.md`).
 4. **Next:** packaging, docs, license, public repo — end of MVP.
 5. Star Citizen as second game: export real keybinds and feed `keybinds_sc`, live data.
 6. Linux: uinput + Hyprland, reusing the validated work.

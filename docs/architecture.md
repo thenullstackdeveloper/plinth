@@ -40,6 +40,11 @@ core.
   model, decoupled from any OS subsystem (the values are evdev key codes, but the name and type
   belong to the domain).
 - **`ActionCatalog`**: the authority on which actions are legal.
+- **`ThemeCatalog` / `Theme`** (`theme.rs`): the closed set of design tokens with their kinds,
+  defaults, ranges and whether a template may change them, and the theme resolved from a
+  template's overrides. Values are integers and fixed point (`Hundredths`), so `Template` stays
+  `Eq`. `Template::check_fit(PanelSize)` rejects a template whose page grids or sidebar do not fit
+  the window, and `Template::from_parts` rejects two components in one cell.
 
 ### `plinth-application` — use cases + ports
 - **Use cases**: `execute_action`, `query_render_state`, `navigate`, `go_to_page`,
@@ -54,6 +59,8 @@ core.
   - `ConfigStore` — preferences (sidebar side, last template).
   - `WindowPlacement` — window placement (no-op on Linux; real code on Win/Mac, future).
 - **DTOs** (`RenderState`) for the UI, and reusable **fakes** behind the `testing` feature.
+- **`theme_css`**: the one CSS spelling of each token value and its custom property name
+  (`--plinth-<path with dashes>`), written from the parsed numbers.
 
 The heart is `execute_action`: if the action is `App` → it mutates `RuntimeState`; if it is
 `Game` → it resolves via `GameKeybindProvider` and emits via `InputSender`. The split by type
@@ -63,8 +70,11 @@ guarantees that an app button **never** injects keys and a game button **never**
 - `input_uinput` — `evdev::uinput::VirtualDevice` → `InputSender` impl.
 - `keybinds_sc` — the **only** module that knows about Star Citizen: parses the keybind XML and
   resolves action→key → `GameKeybindProvider` impl.
-- `template_fs` — loads YAML + validates against a **JSON Schema** + a mapper that applies the
+- `template_fs` — loads YAML (with a strict reader that rejects a repeated key anywhere) +
+  validates against a **JSON Schema** + a mapper that applies the action catalog and the theme
   catalog.
+- `design_tokens` — embeds `design/tokens.json` and reads its DTCG subset into the
+  `ThemeCatalog`; `theme_scalars` parses a template's theme values, one strict format per kind.
 - `config_fs`, `clock`, `window_placement` (no-op on Linux).
 
 ### `plinth-tauri` (binary, later phase)
@@ -91,6 +101,20 @@ Three checks, three places:
    string into an `Action`, an unknown action dies with `UnknownAction`. Because `Action` is a
    closed enum, **an unknown action cannot be constructed** → it cannot reach `execute_action`.
 3. **Business invariants** → domain (page references, lock, sequences).
+
+## Design tokens and template themes
+
+`design/tokens.json` (DTCG 2025.10, a literal subset: no aliases, no `$ref`, no composite types)
+is the single source of the design. Rust embeds it; there is no CSS generator. A template may
+carry a flat `theme` map that overrides the themeable tokens; four tokens (`Quit`'s colours, the
+touch floor and the font) are fixed. The resolved theme travels in `RenderState` as CSS custom
+properties, and the UI sets them on `.panel`, where `panel.css` reads them.
+
+Free CSS cannot reach the UI, by three barriers: the schema checks the shape of keys and values,
+Rust checks each entry against the catalog (exists, themeable, parses as its kind, in range) and
+rewrites the CSS from numbers, and the UI's `themeStyle()` drops any name or value outside a
+narrow pattern (no parentheses, so no `url(`). How to write a theme, and every token with its
+range: [`theming.md`](theming.md).
 
 ## Game-agnosticism
 

@@ -1063,4 +1063,117 @@ mod tests {
             );
         }
     }
+
+    // --- The theming guide must not drift from the catalog ---
+
+    /// The guide for template authors, checked against the embedded catalog.
+    const THEMING_DOC: &str = include_str!("../../../docs/theming.md");
+
+    /// The header of the guide's token table.
+    const TOKEN_TABLE_HEADER: &str = "| token | type | allowed |";
+
+    /// The rows of the guide's token table, as `token -> (type, allowed)`,
+    /// with the backticks around the cells dropped.
+    fn theming_doc_rows() -> std::collections::BTreeMap<String, (String, String)> {
+        let mut lines = THEMING_DOC
+            .lines()
+            .skip_while(|line| line.trim() != TOKEN_TABLE_HEADER);
+        assert!(
+            lines.next().is_some(),
+            "docs/theming.md has no `{TOKEN_TABLE_HEADER}` table"
+        );
+        let mut rows = std::collections::BTreeMap::new();
+        for line in lines.skip(1).take_while(|line| line.starts_with('|')) {
+            let cells: Vec<String> = line
+                .trim()
+                .trim_matches('|')
+                .split('|')
+                .map(|cell| cell.trim().trim_matches('`').to_string())
+                .collect();
+            let [token, kind, allowed] = <[String; 3]>::try_from(cells)
+                .unwrap_or_else(|cells| panic!("a row needs three cells: {cells:?}"));
+            assert!(
+                rows.insert(token.clone(), (kind, allowed)).is_none(),
+                "`{token}` is listed twice"
+            );
+        }
+        rows
+    }
+
+    /// The token's `$type`, as `tokens.json` spells it.
+    fn dtcg_type(kind: TokenKind) -> &'static str {
+        match kind {
+            TokenKind::Color => "color",
+            TokenKind::Dimension => "dimension",
+            TokenKind::Duration => "duration",
+            TokenKind::FontWeight => "fontWeight",
+            TokenKind::Number => "number",
+            TokenKind::FontFamily => "fontFamily",
+        }
+    }
+
+    /// What the guide must say a template may write for `spec`.
+    fn allowed(spec: &TokenSpec) -> String {
+        if !spec.themeable {
+            return "fixed".to_string();
+        }
+        let in_unit = |n: u16| match spec.default {
+            TokenValue::Px(_) => TokenValue::Px(n).to_string(),
+            TokenValue::Ms(_) => TokenValue::Ms(n).to_string(),
+            TokenValue::Number(_) => Hundredths(n).to_string(),
+            _ => n.to_string(),
+        };
+        match (spec.default.kind(), spec.rule) {
+            (TokenKind::Color, _) => "#rrggbb".to_string(),
+            (_, TokenRule::Range { min, max }) => format!("{} to {}", in_unit(min), in_unit(max)),
+            (_, TokenRule::Any) => panic!("`{}` is themeable without a range", spec.path),
+        }
+    }
+
+    #[test]
+    fn theming_doc_lists_every_themeable_token() {
+        let rows = theming_doc_rows();
+        let catalog = catalog();
+        let themeable: Vec<&TokenSpec> = catalog.specs().iter().filter(|s| s.themeable).collect();
+        assert_eq!(themeable.len(), 21);
+        for spec in &themeable {
+            let expected = (dtcg_type(spec.default.kind()).to_string(), allowed(spec));
+            assert_eq!(
+                rows.get(spec.path.as_str()),
+                Some(&expected),
+                "docs/theming.md must list `{}` as {expected:?}",
+                spec.path
+            );
+        }
+        for token in rows.keys() {
+            assert!(
+                catalog.spec(token).is_some(),
+                "docs/theming.md lists `{token}`, which is not in design/tokens.json"
+            );
+        }
+    }
+
+    #[test]
+    fn theming_doc_does_not_list_fixed_tokens_as_themeable() {
+        let rows = theming_doc_rows();
+        let catalog = catalog();
+        for path in FIXED_TOKENS {
+            let kind = dtcg_type(spec(&catalog, path).default.kind()).to_string();
+            assert_eq!(
+                rows.get(path),
+                Some(&(kind, "fixed".to_string())),
+                "docs/theming.md must list `{path}` as fixed"
+            );
+        }
+        let fixed_rows: Vec<&String> = rows
+            .iter()
+            .filter(|(_, (_, allowed))| allowed == "fixed")
+            .map(|(token, _)| token)
+            .collect();
+        assert_eq!(fixed_rows, {
+            let mut fixed: Vec<&str> = FIXED_TOKENS.to_vec();
+            fixed.sort();
+            fixed
+        });
+    }
 }
