@@ -36,6 +36,8 @@ export type FakeOptions = {
   sidebarSide?: "left" | "right";
   /** The pages the backend sends, one list of components per page; three pages of two when absent. */
   pages?: ComponentDto[][];
+  /** The sidebar buttons, in the order the backend sends them; Lock, Switch side and Quit when absent. */
+  sidebar?: ComponentDto[];
   /** The resolved theme the backend sends; the default theme when absent. */
   theme?: ThemeVars;
   /** A component whose press the backend refuses with this error text. */
@@ -54,7 +56,7 @@ export type FakeCall = { cmd: string; args: unknown };
  * theme are built here, in Node, and handed to the page as an argument.
  */
 export async function installFakeBackend(page: Page, options: FakeOptions = {}): Promise<void> {
-  type Injected = Omit<FakeOptions, "pages"> & { pages: PageDto[]; sidebar: ComponentDto[] };
+  type Injected = Omit<FakeOptions, "pages" | "sidebar"> & { pages: PageDto[]; sidebar: ComponentDto[] };
   await page.addInitScript((opts: Injected) => {
     const { pages, sidebar } = opts;
     const state = { currentPage: 0, locked: false, sidebarSide: opts.sidebarSide ?? "right" };
@@ -118,7 +120,7 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
   }, {
     ...options,
     pages: (options.pages ?? DEFAULT_PAGES).map(withGrid),
-    sidebar: SIDEBAR,
+    sidebar: options.sidebar ?? SIDEBAR,
     theme: options.theme ?? defaultTheme,
   } satisfies Injected);
 }

@@ -25,11 +25,39 @@ body {
   flex-direction: column;
 }
 
-/* The sidebar and the page side by side; `data-side` only changes the order. */
+/* The sidebar and the page side by side; `data-side` only changes the order.
+   The design tokens are set on .panel, and only feed properties that cannot
+   fetch anything (`background-color`, never the `background` shorthand). */
 .panel {
   display: flex;
   flex: 1;
   min-height: 0;
+  background-color: var(--plinth-color-panel-background);
+  /* Any text on the panel's background, not only the buttons', reads on
+     it: `color.button.text` on `color.panel.background` is 15.25:1. */
+  color: var(--plinth-color-button-text);
+}
+
+/* The sidebar is one column as wide as its token, its buttons top to bottom
+   in the order Rust sends them (by `row`). `border-box` keeps the padding
+   inside that width, so sidebar and page always add up to the window. */
+.sidebar {
+  flex: 0 0 var(--plinth-size-sidebar-width);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: var(--plinth-space-sidebar-padding);
+  gap: var(--plinth-space-sidebar-gap);
+  background-color: var(--plinth-color-sidebar-background);
+}
+
+/* The buttons share the column's height, never shorter than a finger;
+   `check_fit` in Rust refuses a template whose sidebar would need less, so
+   the last button (Quit) always stays inside the window. */
+.sidebar > button {
+  flex: 1 1 0;
+  min-height: var(--plinth-size-touch-min);
+  min-width: 0;
 }
 
 /* The page takes the width the sidebar leaves; a page change slides inside it. */

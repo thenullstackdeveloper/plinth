@@ -1,7 +1,9 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import defaultTheme from "../src/testing/fixtures/default-theme.json" with { type: "json" };
+import maxTheme from "../src/testing/fixtures/max-theme.json" with { type: "json" };
 import sliceTheme from "../src/testing/fixtures/slice-theme.json" with { type: "json" };
-import { calls, game, installFakeBackend } from "./fakeBackend";
+import { app, calls, game, installFakeBackend } from "./fakeBackend";
 
 /** A swipe with the mouse: press at `from`, move `dx` pixels in steps, release. */
 async function swipe(page: Page, from: { x: number; y: number }, dx: number): Promise<void> {
@@ -133,13 +135,17 @@ test("a drag across the sidebar selects no text", async ({ page }) => {
   const aside = await box(page.getByRole("complementary", { name: "Sidebar" }));
   const quit = await box(page.getByRole("button", { name: "Quit" }));
 
-  // From below the last sidebar button, up and across all of them.
-  await page.mouse.move(aside.x + aside.width / 2, page.viewportSize()!.height - 10);
+  const viewport = page.viewportSize()!;
+
+  // From the sidebar's bottom padding, below the last button, up and across
+  // all of them.
+  await page.mouse.move(aside.x + aside.width / 2, viewport.height - 4);
   await page.mouse.down();
   await page.mouse.move(aside.x + 2, aside.y + 2, { steps: 10 });
   await page.mouse.up();
 
-  expect(quit.y + quit.height).toBeLessThan(page.viewportSize()!.height - 10);
+  // The buttons stretch down to the sidebar's padding (`space.sidebar.padding` 8px).
+  expect(quit.y + quit.height).toBeLessThanOrEqual(viewport.height - 8);
   expect(await page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
 });
 
@@ -191,4 +197,77 @@ test("buttons sit in the cell their row and col give", async ({ page }) => {
   expect(c.height).toBeCloseTo(a.height, 1);
   expect(c.x + c.width).toBeCloseTo(area.x + area.width - padding, 1);
   expect(c.y + c.height).toBeCloseTo(area.y + area.height - padding, 1);
+});
+
+for (const [name, theme] of [
+  ["default", defaultTheme],
+  ["max", maxTheme],
+] as const) {
+  test(`with the ${name} theme the sidebar is as wide as its token and the page takes the rest`, async ({ page }) => {
+    await installFakeBackend(page, { theme });
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "World map" })).toBeVisible();
+
+    const aside = await box(page.getByRole("complementary", { name: "Sidebar" }));
+    const area = await box(page.getByRole("region", { name: "Page" }));
+    expect(aside.width).toBe(Number.parseInt(theme["--plinth-size-sidebar-width"], 10));
+    expect(aside.width + area.width).toBe(page.viewportSize()!.width);
+  });
+}
+
+test("with the max theme Quit stays inside the window", async ({ page }) => {
+  // The most sidebar buttons the max theme fits (`check_fit`: 4·44 + 3·16 +
+  // 2·16 = 256 ≤ 300), with Quit last.
+  await installFakeBackend(page, {
+    theme: maxTheme,
+    sidebar: [
+      app("lock", "Lock", "toggle_lock", 0),
+      app("switch_side", "Switch side", "switch_sidebar", 1),
+      app("next", "Next", "next_page", 2),
+      app("quit", "Quit", "quit", 3),
+    ],
+  });
+  await page.goto("/");
+  const quit = page.getByRole("button", { name: "Quit" });
+  await expect(quit).toBeVisible();
+
+  const b = await box(quit);
+  const viewport = page.viewportSize()!;
+  expect(b.x).toBeGreaterThanOrEqual(0);
+  expect(b.y).toBeGreaterThanOrEqual(0);
+  expect(b.x + b.width).toBeLessThanOrEqual(viewport.width);
+  expect(b.y + b.height).toBeLessThanOrEqual(viewport.height);
+  // Nothing covers it: a tap on its centre lands on Quit.
+  const hit = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.textContent ?? null,
+    { x: b.x + b.width / 2, y: b.y + b.height / 2 },
+  );
+  expect(hit).toBe("Quit");
+});
+
+test("a hostile theme value never reaches the panel and fetches nothing", async ({ page }) => {
+  // Neither can reach the page from Rust, which writes every value from
+  // numbers; `themeStyle` is the last barrier if one ever did.
+  const hostile = {
+    ...defaultTheme,
+    "--plinth-color-panel-background": "url(http://127.0.0.1:9/value)",
+    "background-image": "url(http://127.0.0.1:9/name)",
+  };
+  await installFakeBackend(page, { theme: hostile });
+  const requests: string[] = [];
+  page.on("request", (request) => requests.push(request.url()));
+
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "World map" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+
+  const panel = await page.locator(".panel").evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      variable: style.getPropertyValue("--plinth-color-panel-background"),
+      image: style.backgroundImage,
+    };
+  });
+  expect(panel).toEqual({ variable: "", image: "none" });
+  expect(requests.filter((url) => url.startsWith("http://127.0.0.1:9/"))).toEqual([]);
 });

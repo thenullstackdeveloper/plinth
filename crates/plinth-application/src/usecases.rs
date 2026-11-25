@@ -249,7 +249,11 @@ pub fn query_render_state(template: &Template, state: &RuntimeState) -> RenderSt
         })
         .collect();
 
-    let sidebar = template.sidebar().components.iter().map(to_view).collect();
+    // The sidebar is one column, shown top to bottom by `row` (then `col`),
+    // whatever order the template lists its buttons in. The sort is stable.
+    let mut sidebar: Vec<ComponentView> =
+        template.sidebar().components.iter().map(to_view).collect();
+    sidebar.sort_by_key(|c| (c.row, c.col));
 
     RenderState {
         pages,

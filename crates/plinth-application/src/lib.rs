@@ -606,4 +606,29 @@ mod tests {
         let cells: Vec<(u16, u16)> = page.components.iter().map(|c| (c.row, c.col)).collect();
         assert_eq!(cells, vec![(0, 0), (2, 1), (1, 3)]);
     }
+
+    #[test]
+    fn sidebar_is_ordered_by_row() {
+        let at = |id: &str, row: u16, col: u16| Component {
+            position: ComponentPosition { row, col },
+            ..comp(id, 0, Action::App(AppAction::NextPage))
+        };
+        let page = Page::new(vec![at("next", 0, 0)]).unwrap();
+        // Written out of order: the column shows them by `row`, then `col`.
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![
+                at("quit", 2, 0),
+                at("lock", 0, 1),
+                at("switch", 1, 0),
+                at("first", 0, 0),
+            ],
+        };
+        let template = Template::new(meta(), vec![page], sidebar).unwrap();
+
+        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right));
+
+        let ids: Vec<&str> = render.sidebar.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["first", "lock", "switch", "quit"]);
+    }
 }
