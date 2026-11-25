@@ -227,6 +227,8 @@ fn parse_scalar(kind: TokenKind, raw: &Value) -> Option<TokenValue> {
             .as_str()
             .and_then(parse_hex_color)
             .map(TokenValue::Color),
+        // No other kind can be overridden from a template yet.
+        _ => None,
     }
 }
 

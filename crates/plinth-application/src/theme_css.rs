@@ -15,6 +15,8 @@ pub fn css_variable(path: &TokenPath) -> String {
 pub fn css_value(value: &TokenValue) -> String {
     match value {
         TokenValue::Color(c) => format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b),
+        // Provisional until every kind gets its canonical CSS spelling.
+        other => other.to_string(),
     }
 }
 

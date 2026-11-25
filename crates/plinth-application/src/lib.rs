@@ -31,7 +31,7 @@ mod tests {
         Action, ActionCatalog, ActionId, AppAction, Component, ComponentId, ComponentPosition,
         DomainError, GameAction, KeyChord, KeyMacro, KeySequence, KeyStep, Page, RuntimeState,
         ScanCode, SchemaVersion, Sidebar, SidebarSide, Srgb8, Template, TemplateMetadata,
-        ThemeCatalog, TokenPath, TokenSpec, TokenValue, VisualProps,
+        ThemeCatalog, TokenPath, TokenRule, TokenSpec, TokenValue, VisualProps,
     };
     use std::time::Duration;
 
@@ -555,6 +555,7 @@ mod tests {
                 b: 59,
             }),
             themeable: true,
+            rule: TokenRule::Any,
         }])
         .unwrap();
         let theme = catalog

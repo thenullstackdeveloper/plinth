@@ -6,7 +6,7 @@
 //! `$extensions["dev.plinth"].themeable`.
 
 use plinth_application::TemplateError;
-use plinth_domain::{ThemeCatalog, TokenPath, TokenSpec, TokenValue};
+use plinth_domain::{ThemeCatalog, TokenPath, TokenRule, TokenSpec, TokenValue};
 use serde_json::{Map, Value};
 
 use crate::theme_scalars::parse_hex_color;
@@ -95,6 +95,7 @@ fn read_token(
         path,
         default,
         themeable,
+        rule: TokenRule::Any,
     })
 }
 

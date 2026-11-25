@@ -21,7 +21,9 @@ pub use key::{
 };
 pub use runtime::{NavDirection, RuntimeState};
 pub use template::{Component, ComponentId, Page, Sidebar, Template, TemplateMetadata};
-pub use theme::{Srgb8, Theme, ThemeCatalog, TokenKind, TokenPath, TokenSpec, TokenValue};
+pub use theme::{
+    Hundredths, Srgb8, Theme, ThemeCatalog, TokenKind, TokenPath, TokenRule, TokenSpec, TokenValue,
+};
 
 #[cfg(test)]
 mod tests {
@@ -288,6 +290,7 @@ mod tests {
                 b: 59,
             }),
             themeable: true,
+            rule: TokenRule::Any,
         }])
         .unwrap();
         let theme = catalog.defaults();

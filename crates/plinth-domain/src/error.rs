@@ -68,4 +68,22 @@ pub enum DomainError {
     /// A theme gives a token a value of the wrong kind.
     #[error("theme token `{token}` expects {expected}")]
     TokenKindMismatch { token: String, expected: TokenKind },
+
+    /// A theme changes a token the catalog keeps fixed.
+    #[error("theme token `{0}` is fixed and cannot be changed by a template")]
+    TokenNotThemeable(String),
+
+    /// A value outside the bounds the catalog allows for its token.
+    #[error("theme token `{token}`: {value} is outside the allowed range {min} to {max}")]
+    TokenOutOfRange {
+        token: String,
+        value: String,
+        min: String,
+        max: String,
+    },
+
+    /// A font family list that is empty or holds a name that is not plain
+    /// letters, digits, spaces and dashes.
+    #[error("theme token `{0}` needs a non-empty list of plain font names")]
+    InvalidFontFamily(String),
 }
