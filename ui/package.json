@@ -8,7 +8,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "storybook": "storybook dev -p 6006 --no-open --no-version-updates",
+    "build-storybook": "storybook build",
+    "test-storybook": "vitest run --project=storybook"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.5",
@@ -19,6 +22,9 @@
   },
   "devDependencies": {
     "@playwright/test": "1.65.1",
+    "@storybook/addon-a11y": "10.6.8",
+    "@storybook/addon-vitest": "10.6.8",
+    "@storybook/react-vite": "10.6.8",
     "@tauri-apps/cli": "2.12.6",
     "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",
@@ -26,7 +32,11 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
+    "@vitest/browser": "5.1.1",
+    "@vitest/browser-playwright": "5.1.1",
     "jsdom": "31.0.1",
+    "playwright": "1.65.1",
+    "storybook": "10.6.8",
     "typescript": "7.0.2",
     "vite": "8.3.8",
     "vitest": "5.1.1"

@@ -33,3 +33,6 @@ ui/dist/
 # Playwright output
 ui/test-results/
 ui/playwright-report/
+# Storybook output
+ui/storybook-static/
+ui/debug-storybook.log
