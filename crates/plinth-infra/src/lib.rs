@@ -12,6 +12,7 @@ pub mod input_windows;
 pub mod key_names;
 pub mod keybinds_sc;
 pub mod keybinds_static;
+pub mod strict_yaml;
 pub mod template_dir;
 pub mod template_fs;
 pub mod theme_scalars;

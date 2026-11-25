@@ -62,6 +62,7 @@ pub fn pick_startup_template(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::panel::WOW_PHASE1_TEMPLATE;
     use std::path::PathBuf;
 
     fn temp_root(test: &str) -> PathBuf {
@@ -125,6 +126,21 @@ mod tests {
         assert_eq!(picked.name, None);
         assert_eq!(picked.yaml, WOW_DEFAULT_KEYS_TEMPLATE);
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn bundled_templates_still_load() {
+        let source =
+            FsTemplateSource::new(StaticKeybindProvider::wow_defaults().catalog()).unwrap();
+        for (name, yaml) in [
+            ("wow-default-keys.yaml", WOW_DEFAULT_KEYS_TEMPLATE),
+            ("wow-demo.yaml", WOW_DEMO_TEMPLATE),
+            ("wow-phase1.yaml", WOW_PHASE1_TEMPLATE),
+        ] {
+            if let Err(error) = source.load_str(yaml) {
+                panic!("`{name}` must load with the strict reader: {}", error.0);
+            }
+        }
     }
 
     #[test]

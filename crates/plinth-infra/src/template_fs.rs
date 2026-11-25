@@ -23,6 +23,7 @@ use serde_json::Value;
 
 use crate::design_tokens::embedded_catalog;
 use crate::key_names::parse_chord;
+use crate::strict_yaml;
 use crate::theme_scalars::parse_hex_color;
 
 /// The JSON Schema is embedded in the binary so the adapter is self-contained.
@@ -51,8 +52,8 @@ impl FsTemplateSource {
     /// Parses + validates + maps a YAML string (useful for tests and in-memory
     /// sources).
     pub fn load_str(&self, yaml: &str) -> Result<Template, TemplateError> {
-        let doc: Value = serde_yaml_ng::from_str(yaml)
-            .map_err(|e| TemplateError(format!("invalid YAML: {e}")))?;
+        // A key written twice is refused, wherever it is.
+        let doc = strict_yaml::from_str(yaml)?;
 
         // Before the shape: an unquoted `#` makes the value a comment, so the
         // author gets a hint instead of a schema error about `null`.
@@ -421,6 +422,66 @@ sidebar: {{ default_side: right, components: [] }}
             .load_str(&with_component(r#"keys: "shift+shift+1""#))
             .unwrap_err();
         assert!(err.0.contains("twice"), "{}", err.0);
+    }
+
+    // --- Keys written twice ---
+
+    #[test]
+    fn rejects_a_duplicate_theme_key() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src
+            .load_str(&with_theme(&[
+                r##"color.button.background: "#1e1e2e""##,
+                r##"color.button.background: "#262a3b""##,
+            ]))
+            .unwrap_err();
+        assert!(
+            err.0
+                .contains("theme: duplicate key `color.button.background`"),
+            "{}",
+            err.0
+        );
+    }
+
+    #[test]
+    fn rejects_a_duplicate_component_key() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src
+            .load_str(&with_component("id: again\n        action: \"v_eject\""))
+            .unwrap_err();
+        assert!(
+            err.0.contains("pages[0].components[0]: duplicate key `id`"),
+            "{}",
+            err.0
+        );
+    }
+
+    #[test]
+    fn rejects_a_duplicate_root_key() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let twice = format!("{VALID}sidebar: {{ default_side: left, components: [] }}\n");
+        let err = src.load_str(&twice).unwrap_err();
+        assert!(err.0.starts_with("invalid YAML: "), "{}", err.0);
+        assert!(err.0.contains("duplicate key `sidebar`"), "{}", err.0);
+    }
+
+    #[test]
+    fn yaml_infinity_becomes_null() {
+        let infinite = VALID.replacen("{ row: 0, col: 0 }", "{ row: .inf, col: 0 }", 1);
+        let doc = strict_yaml::from_str(&infinite).unwrap();
+        assert_eq!(
+            doc["pages"][0]["components"][0]["position"]["row"],
+            Value::Null
+        );
+
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src.load_str(&infinite).unwrap_err();
+        assert!(
+            err.0
+                .contains("does not satisfy the schema at `/pages/0/components/0/position/row`"),
+            "{}",
+            err.0
+        );
     }
 
     // --- The template's theme ---
