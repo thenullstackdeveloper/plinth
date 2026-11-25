@@ -42,7 +42,9 @@ export function PageView(props: {
 
   return (
     <section className="page" aria-label="Page" ref={sectionRef}>
-      <AnimatePresence mode="wait" custom={dir} initial={false}>
+      {/* `popLayout`: the leaving and the entering page slide at the same
+          time, so the whole change lasts `transitionMs`, not twice that. */}
+      <AnimatePresence mode="popLayout" custom={dir} initial={false}>
         <motion.div
           key={props.pageIndex}
           className="page-slide"

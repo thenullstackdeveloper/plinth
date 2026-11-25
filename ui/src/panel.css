@@ -60,8 +60,14 @@ body {
   min-width: 0;
 }
 
-/* The page takes the width the sidebar leaves; a page change slides inside it. */
+/* The page takes the width the sidebar leaves; a page change slides inside it.
+   During the change the leaving page is taken out of the flow
+   (`AnimatePresence mode="popLayout"` makes it `position: absolute`), so the
+   page has to be its containing block: without `position: relative` its
+   `overflow: hidden` would not clip the leaving page, which would be painted
+   over the sidebar. */
 .page {
+  position: relative;
   flex: 1;
   min-width: 0;
   overflow: hidden;
