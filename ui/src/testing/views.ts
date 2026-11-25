@@ -1,4 +1,5 @@
 import type { ComponentDto, RenderView } from "../adapters/panelApi";
+import defaultTheme from "./fixtures/default-theme.json";
 
 /** A game component for tests. */
 export function component(id: string, label: string | null = id): ComponentDto {
@@ -10,7 +11,7 @@ export function appComponent(id: string, label: string, appAction: string): Comp
   return { id, label, actionKind: "app", appAction };
 }
 
-/** A render view for tests, one entry of `pages` per page. */
+/** A render view for tests, one entry of `pages` per page, with the default theme. */
 export function viewWith(pages: ComponentDto[][], overrides: Partial<RenderView> = {}): RenderView {
   return {
     pages: pages.map((components) => ({ components })),
@@ -18,6 +19,7 @@ export function viewWith(pages: ComponentDto[][], overrides: Partial<RenderView>
     locked: false,
     sidebar: [],
     sidebarSide: "right",
+    theme: defaultTheme,
     ...overrides,
   };
 }

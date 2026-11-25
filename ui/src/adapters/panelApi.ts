@@ -9,12 +9,16 @@ export type ComponentDto = {
   appAction: string | null;
 };
 
+/** CSS custom property → value (`"--plinth-color-button-background"` → `"#262a3b"`), resolved by Rust. */
+export type ThemeVars = Record<string, string>;
+
 export type RenderView = {
   pages: { components: ComponentDto[] }[];
   currentPage: number;
   locked: boolean;
   sidebar: ComponentDto[];
   sidebarSide: "left" | "right";
+  theme: ThemeVars;
 };
 
 export type NavDirection = "next" | "prev";

@@ -1,7 +1,12 @@
 import type { Page } from "@playwright/test";
 
+import type { ThemeVars } from "../src/adapters/panelApi";
+import defaultTheme from "../src/testing/fixtures/default-theme.json" with { type: "json" };
+
 export type FakeOptions = {
   sidebarSide?: "left" | "right";
+  /** The resolved theme the backend sends; the default theme when absent. */
+  theme?: ThemeVars;
   /** A component whose press the backend refuses with this error text. */
   failPress?: { componentId: string; error: string };
 };
@@ -14,7 +19,8 @@ export type FakeCall = { cmd: string; args: unknown };
  * `window.__TAURI_INTERNALS__` shape `mockIPC` in `@tauri-apps/api/mocks`
  * (2.12.5) fills. It answers the panel commands with three pages, a lock and a
  * sidebar, like `Panel` in crates/plinth-tauri/src/panel.rs: a refused swipe
- * or press answers with the unchanged view.
+ * or press answers with the unchanged view. The theme is resolved here, in
+ * Node, and handed to the page as an argument.
  */
 export async function installFakeBackend(page: Page, options: FakeOptions = {}): Promise<void> {
   await page.addInitScript((opts: FakeOptions) => {
@@ -41,6 +47,7 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
       locked: state.locked,
       sidebar,
       sidebarSide: state.sidebarSide,
+      theme: opts.theme,
     });
 
     const callbacks = new Map<number, unknown>();
@@ -89,7 +96,7 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
     const w = window as unknown as Record<string, unknown>;
     w.__TAURI_INTERNALS__ = internals;
     w.__plinthCalls = calls;
-  }, options);
+  }, { ...options, theme: options.theme ?? defaultTheme });
 }
 
 /** Everything the UI asked the fake backend, in order. */

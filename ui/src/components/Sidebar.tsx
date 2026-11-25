@@ -6,7 +6,7 @@ export function Sidebar(props: { components: ComponentDto[]; locked: boolean }) 
   const press = usePanelStore((s) => s.press);
 
   return (
-    <aside aria-label="Sidebar">
+    <aside className="sidebar" aria-label="Sidebar">
       {props.components.map((component) => {
         const isLock = component.appAction === "toggle_lock";
         const label = isLock ? (props.locked ? "Unlock" : "Lock") : (component.label ?? component.id);

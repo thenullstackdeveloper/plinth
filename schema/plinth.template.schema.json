@@ -37,6 +37,18 @@
           "items": { "$ref": "#/$defs/component" }
         }
       }
+    },
+    "theme": {
+      "type": "object",
+      "description": "Overrides of the design tokens, as a flat map from a token path ('color.button.background') to a scalar. Only the shape is checked here; the token catalog decides which tokens exist, which may change and which values they accept.",
+      "maxProperties": 32,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*){1,3}$" },
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "pattern": "^[#A-Za-z0-9.-]{1,32}$" },
+          { "type": "number" }
+        ]
+      }
     }
   },
   "$defs": {

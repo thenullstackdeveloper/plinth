@@ -50,7 +50,7 @@ export const SidebarRight: Story = {
 export const Locked: Story = {
   beforeEach: showing({ locked: true }),
   play: async ({ canvas, canvasElement }) => {
-    await expect(canvasElement.querySelector(".panel")).toHaveAttribute("data-locked", "true");
+    await expect(canvasElement.querySelector(".panel[data-locked]")).toHaveAttribute("data-locked", "true");
     await expect(canvas.getByRole("button", { name: "Unlock" })).toBeVisible();
   },
 };

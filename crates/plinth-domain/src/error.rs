@@ -2,6 +2,7 @@
 //! (no file paths, no input-layer types, etc.).
 
 use crate::action::ActionId;
+use crate::theme::TokenKind;
 
 /// Everything that can go wrong inside the game-agnostic core.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -51,4 +52,20 @@ pub enum DomainError {
     /// A `GoToPage` action points to an index the template does not have.
     #[error("invalid page reference: {0}")]
     InvalidPageReference(usize),
+
+    /// A token name that is not 2 to 4 dotted `[a-z][a-z0-9-]*` segments.
+    #[error("invalid theme token path `{0}`")]
+    InvalidTokenPath(String),
+
+    /// The theme catalog defines the same token twice.
+    #[error("theme token `{0}` is defined twice")]
+    DuplicateToken(String),
+
+    /// A theme names a token the catalog does not have.
+    #[error("unknown theme token `{0}`")]
+    UnknownToken(String),
+
+    /// A theme gives a token a value of the wrong kind.
+    #[error("theme token `{token}` expects {expected}")]
+    TokenKindMismatch { token: String, expected: TokenKind },
 }

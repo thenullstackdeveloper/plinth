@@ -3,6 +3,7 @@
 
 pub mod clock;
 pub mod config_fs;
+pub mod design_tokens;
 pub mod input_log;
 #[cfg(target_os = "linux")]
 pub mod input_uinput;
@@ -13,4 +14,5 @@ pub mod keybinds_sc;
 pub mod keybinds_static;
 pub mod template_dir;
 pub mod template_fs;
+pub mod theme_scalars;
 pub mod window_placement;

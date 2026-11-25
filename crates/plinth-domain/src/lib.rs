@@ -10,6 +10,7 @@ pub mod error;
 pub mod key;
 pub mod runtime;
 pub mod template;
+pub mod theme;
 
 pub use action::{Action, ActionId, AppAction, GameAction};
 pub use catalog::ActionCatalog;
@@ -20,6 +21,7 @@ pub use key::{
 };
 pub use runtime::{NavDirection, RuntimeState};
 pub use template::{Component, ComponentId, Page, Sidebar, Template, TemplateMetadata};
+pub use theme::{Srgb8, Theme, ThemeCatalog, TokenKind, TokenPath, TokenSpec, TokenValue};
 
 #[cfg(test)]
 mod tests {
@@ -260,5 +262,37 @@ mod tests {
         assert!(template.find_component(&ComponentId::new("btn")).is_some());
         assert!(template.find_component(&ComponentId::new("lock")).is_some());
         assert!(template.find_component(&ComponentId::new("nope")).is_none());
+    }
+
+    fn one_page_template() -> Template {
+        let page = Page::new(vec![component("btn", Action::App(AppAction::NextPage))]).unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![],
+        };
+        Template::new(meta(), vec![page], sidebar).unwrap()
+    }
+
+    #[test]
+    fn template_new_has_an_empty_theme() {
+        assert_eq!(one_page_template().theme().iter().count(), 0);
+    }
+
+    #[test]
+    fn with_theme_carries_the_theme() {
+        let catalog = ThemeCatalog::new(vec![TokenSpec {
+            path: TokenPath::new("color.button.background").unwrap(),
+            default: TokenValue::Color(Srgb8 {
+                r: 38,
+                g: 42,
+                b: 59,
+            }),
+            themeable: true,
+        }])
+        .unwrap();
+        let theme = catalog.defaults();
+        let template = one_page_template().with_theme(theme.clone());
+        assert_eq!(template.theme(), &theme);
+        assert_eq!(template.theme().iter().count(), 1);
     }
 }

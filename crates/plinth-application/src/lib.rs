@@ -6,12 +6,13 @@
 
 pub mod dto;
 pub mod ports;
+pub mod theme_css;
 pub mod usecases;
 
 #[cfg(feature = "testing")]
 pub mod testing;
 
-pub use dto::{ActionKind, ComponentView, PageView, RenderState};
+pub use dto::{ActionKind, ComponentView, PageView, RenderState, ThemeVar};
 pub use ports::{
     Clock, ConfigError, ConfigStore, GameKeybindProvider, InputError, InputSender, KeyEvent,
     KeyValue, PlacementError, Prefs, ProviderError, ResolveError, TemplateError, TemplateSource,
@@ -29,7 +30,8 @@ mod tests {
     use plinth_domain::{
         Action, ActionCatalog, ActionId, AppAction, Component, ComponentId, ComponentPosition,
         DomainError, GameAction, KeyChord, KeyMacro, KeySequence, KeyStep, Page, RuntimeState,
-        ScanCode, SchemaVersion, Sidebar, SidebarSide, Template, TemplateMetadata, VisualProps,
+        ScanCode, SchemaVersion, Sidebar, SidebarSide, Srgb8, Template, TemplateMetadata,
+        ThemeCatalog, TokenPath, TokenSpec, TokenValue, VisualProps,
     };
     use std::time::Duration;
 
@@ -541,5 +543,40 @@ mod tests {
         assert_eq!(map.action_kind, ActionKind::Keys);
         let dump = format!("{render:?}");
         assert!(!dump.contains("ScanCode") && !dump.contains("KeyChord"));
+    }
+
+    #[test]
+    fn render_state_carries_the_theme() {
+        let catalog = ThemeCatalog::new(vec![TokenSpec {
+            path: TokenPath::new("color.button.background").unwrap(),
+            default: TokenValue::Color(Srgb8 {
+                r: 38,
+                g: 42,
+                b: 59,
+            }),
+            themeable: true,
+        }])
+        .unwrap();
+        let theme = catalog
+            .resolve(vec![(
+                "color.button.background".into(),
+                TokenValue::Color(Srgb8 {
+                    r: 30,
+                    g: 30,
+                    b: 46,
+                }),
+            )])
+            .unwrap();
+        let template = template().with_theme(theme);
+
+        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right));
+
+        assert_eq!(
+            render.theme,
+            vec![ThemeVar {
+                name: "--plinth-color-button-background".into(),
+                value: "#1e1e2e".into(),
+            }]
+        );
     }
 }

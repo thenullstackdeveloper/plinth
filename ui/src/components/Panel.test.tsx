@@ -5,6 +5,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import type { RenderView } from "../adapters/panelApi";
 import { usePanelStore } from "../store/panelStore";
+import sliceTheme from "../testing/fixtures/slice-theme.json";
 import { appComponent, component, viewWith } from "../testing/views";
 import { Panel } from "./Panel";
 
@@ -58,4 +59,10 @@ test("Switch side presses its component", async () => {
   showing(viewWith([[component("world_map")]], { sidebar }));
   await userEvent.click(screen.getByRole("button", { name: "Switch side" }));
   expect(invokeMock).toHaveBeenCalledWith("press", { componentId: "switch_side" });
+});
+
+test("the template theme is set on the panel", () => {
+  const { container } = showing(viewWith([[component("world_map")]], { sidebar, theme: sliceTheme }));
+  const panel = container.querySelector<HTMLElement>(".panel");
+  expect(panel?.style.getPropertyValue("--plinth-color-button-background")).toBe("#1e1e2e");
 });

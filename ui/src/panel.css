@@ -45,3 +45,14 @@ body {
 .page-surface {
   height: 100%;
 }
+
+/* Buttons take their colours from the design tokens, set on .panel. Only
+   properties that cannot fetch anything (`background-color`, never the
+   `background` shorthand). */
+.page button,
+.sidebar button {
+  background-color: var(--plinth-color-button-background);
+  /* Light text on the dark token background; the value of the approved
+     `color.button.text`, a literal until that token exists. */
+  color: #e6e8f0;
+}

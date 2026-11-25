@@ -14,6 +14,7 @@ use crate::ports::{
     Clock, GameKeybindProvider, InputSender, KeyEvent, ProviderError, ResolveError, TemplateError,
     TemplateSource,
 };
+use crate::theme_css::theme_vars;
 
 /// The unified error of the application layer.
 #[derive(Debug, thiserror::Error)]
@@ -251,5 +252,6 @@ pub fn query_render_state(template: &Template, state: &RuntimeState) -> RenderSt
         sidebar,
         sidebar_side: state.sidebar_side(),
         locked: state.is_locked(),
+        theme: theme_vars(template.theme()),
     }
 }

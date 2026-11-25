@@ -37,6 +37,14 @@ pub struct PageView {
     pub components: Vec<ComponentView>,
 }
 
+/// One design token as a CSS custom property: `--plinth-color-button-background`
+/// and `#262a3b`. Presentation only, so it may cross to the UI.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThemeVar {
+    pub name: String,
+    pub value: String,
+}
+
 /// The full render state: everything the UI needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderState {
@@ -45,4 +53,6 @@ pub struct RenderState {
     pub sidebar: Vec<ComponentView>,
     pub sidebar_side: SidebarSide,
     pub locked: bool,
+    /// The template's resolved theme, every token of the catalog.
+    pub theme: Vec<ThemeVar>,
 }

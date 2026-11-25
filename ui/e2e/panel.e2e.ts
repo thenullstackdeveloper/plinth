@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import sliceTheme from "../src/testing/fixtures/slice-theme.json" with { type: "json" };
 import { calls, installFakeBackend } from "./fakeBackend";
 
 /** A swipe with the mouse: press at `from`, move `dx` pixels in steps, release. */
@@ -138,4 +139,27 @@ test("a drag across the sidebar selects no text", async ({ page }) => {
 
   expect(quit.y + quit.height).toBeLessThan(page.viewportSize()!.height - 10);
   expect(await page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
+});
+
+/** The colour Chromium paints behind a button. */
+function backgroundOf(locator: Locator): Promise<string> {
+  return locator.evaluate((el) => getComputedStyle(el).backgroundColor);
+}
+
+test("without a template theme the buttons take the default from tokens.json", async ({ page }) => {
+  await page.goto("/");
+  const worldMap = page.getByRole("button", { name: "World map" });
+  await expect(worldMap).toBeVisible();
+  // #262a3b, `color.button.background` in design/tokens.json.
+  expect(await backgroundOf(worldMap)).toBe("rgb(38, 42, 59)");
+  expect(await backgroundOf(page.getByRole("button", { name: "Lock" }))).toBe("rgb(38, 42, 59)");
+});
+
+test("a template theme colours the page buttons", async ({ page }) => {
+  await installFakeBackend(page, { theme: sliceTheme });
+  await page.goto("/");
+  const worldMap = page.getByRole("button", { name: "World map" });
+  await expect(worldMap).toBeVisible();
+  // #1e1e2e, the override in slice-theme.json.
+  expect(await backgroundOf(worldMap)).toBe("rgb(30, 30, 46)");
 });

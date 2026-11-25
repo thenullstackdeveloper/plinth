@@ -3,6 +3,8 @@
 //! to and from this type, so everything here is testable with the fakes of
 //! `plinth-application`.
 
+use std::collections::BTreeMap;
+
 use plinth_application::{
     execute_action, navigate, query_render_state, ActionKind, ActionOutcome, AppError, Clock,
     ComponentView, ConfigStore, GameKeybindProvider, InputSender, Prefs,
@@ -61,6 +63,8 @@ pub struct RenderView {
     pub sidebar: Vec<ComponentDto>,
     /// `"left"` or `"right"`.
     pub sidebar_side: &'static str,
+    /// CSS custom property → value, for every design token; an object in JSON.
+    pub theme: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -224,6 +228,11 @@ where
                 SidebarSide::Left => "left",
                 SidebarSide::Right => "right",
             },
+            theme: state
+                .theme
+                .into_iter()
+                .map(|var| (var.name, var.value))
+                .collect(),
         }
     }
 
@@ -576,5 +585,40 @@ mod tests {
             .switch_template("wow-demo.yaml", WOW_DEMO_TEMPLATE)
             .is_ok());
         assert_eq!(panel.template_name(), Some("wow-demo.yaml"));
+    }
+    // --- The theme, against the values the UI tests use ---
+
+    /// The resolved default theme the UI tests, stories and fake backend use.
+    const DEFAULT_THEME_FIXTURE: &str =
+        include_str!("../../../ui/src/testing/fixtures/default-theme.json");
+
+    /// The theme of a template that overrides `color.button.background`.
+    const SLICE_THEME_FIXTURE: &str =
+        include_str!("../../../ui/src/testing/fixtures/slice-theme.json");
+
+    fn theme_json(panel: &TestPanel<InMemoryConfigStore>) -> serde_json::Value {
+        serde_json::to_value(panel.render()).unwrap()["theme"].clone()
+    }
+
+    fn fixture(src: &str) -> serde_json::Value {
+        serde_json::from_str(src).unwrap()
+    }
+
+    #[test]
+    fn render_view_carries_the_default_theme_as_the_ui_fixture() {
+        assert_eq!(
+            theme_json(&panel_with(WOW_DEFAULT_KEYS_TEMPLATE)),
+            fixture(DEFAULT_THEME_FIXTURE)
+        );
+    }
+
+    #[test]
+    fn themed_template_renders_the_ui_slice_fixture() {
+        let themed =
+            format!("{WOW_PHASE1_TEMPLATE}theme:\n  color.button.background: \"#1e1e2e\"\n");
+        assert_eq!(
+            theme_json(&panel_with(&themed)),
+            fixture(SLICE_THEME_FIXTURE)
+        );
     }
 }

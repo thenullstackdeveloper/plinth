@@ -7,6 +7,7 @@
 use crate::action::{Action, AppAction};
 use crate::error::DomainError;
 use crate::key::{ComponentPosition, SchemaVersion, SidebarSide, VisualProps};
+use crate::theme::Theme;
 
 /// Identifier of a component, unique within the template.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -65,6 +66,8 @@ pub struct Template {
     metadata: TemplateMetadata,
     pages: Vec<Page>,
     sidebar: Sidebar,
+    /// The resolved theme. Empty until `with_theme` gives it one.
+    theme: Theme,
 }
 
 impl Template {
@@ -118,7 +121,18 @@ impl Template {
             metadata,
             pages,
             sidebar,
+            theme: Theme::default(),
         })
+    }
+
+    /// The same template with its resolved theme.
+    pub fn with_theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
+        self
+    }
+
+    pub fn theme(&self) -> &Theme {
+        &self.theme
     }
 
     pub fn metadata(&self) -> &TemplateMetadata {
