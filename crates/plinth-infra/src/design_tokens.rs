@@ -384,6 +384,7 @@ fn invalid(path: &str, reason: &str) -> TemplateError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use plinth_application::theme_css::css_variable;
     use plinth_domain::{Hundredths, Srgb8, TokenKind};
 
     #[test]
@@ -787,6 +788,264 @@ mod tests {
                 r#"invalid design tokens at `group.token`: a duration must be whole milliseconds, like { "value": 200, "unit": "ms" }"#,
                 "{value}"
             );
+        }
+    }
+
+    // --- The embedded catalog: its tokens, safety floors and contrast ---
+
+    /// The four tokens no template may change: `Quit` stays recognisable, a
+    /// target never shrinks below a finger, and the font is the system one.
+    const FIXED_TOKENS: [&str; 4] = [
+        "color.quit.background",
+        "color.quit.text",
+        "size.touch.min",
+        "font.family.label",
+    ];
+
+    fn catalog() -> ThemeCatalog {
+        embedded_catalog().expect("design/tokens.json loads")
+    }
+
+    fn spec<'a>(catalog: &'a ThemeCatalog, path: &str) -> &'a TokenSpec {
+        catalog
+            .spec(path)
+            .unwrap_or_else(|| panic!("`{path}` is not in design/tokens.json"))
+    }
+
+    fn px(catalog: &ThemeCatalog, path: &str) -> u16 {
+        match spec(catalog, path).default {
+            TokenValue::Px(n) => n,
+            ref other => panic!("`{path}` is not a dimension: {other:?}"),
+        }
+    }
+
+    fn range(catalog: &ThemeCatalog, path: &str) -> (u16, u16) {
+        match spec(catalog, path).rule {
+            TokenRule::Range { min, max } => (min, max),
+            TokenRule::Any => panic!("`{path}` has no range"),
+        }
+    }
+
+    fn color(catalog: &ThemeCatalog, path: &str) -> Srgb8 {
+        match spec(catalog, path).default {
+            TokenValue::Color(c) => c,
+            ref other => panic!("`{path}` is not a colour: {other:?}"),
+        }
+    }
+
+    /// A catalog entry as the test writes it: path, default as CSS, whether a
+    /// template may change it, and its range in the token's own unit.
+    type Entry = (String, String, bool, Option<(u16, u16)>);
+
+    #[test]
+    fn embedded_catalog_has_the_25_tokens() {
+        let expected: [(&str, &str, bool, _); 25] = [
+            ("color.panel.background", "#11121a", true, None),
+            ("color.sidebar.background", "#191b26", true, None),
+            ("color.button.background", "#262a3b", true, None),
+            ("color.button.border", "#626a90", true, None),
+            ("color.button.text", "#e6e8f0", true, None),
+            ("color.button.pressed-background", "#343a55", true, None),
+            ("color.button.toggled-background", "#e0b05c", true, None),
+            ("color.button.toggled-text", "#15161e", true, None),
+            ("color.quit.background", "#b23a48", false, None),
+            ("color.quit.text", "#ffffff", false, None),
+            ("size.sidebar.width", "128px", true, Some((96, 240))),
+            ("size.button.min", "64px", true, Some((44, 96))),
+            ("size.button.border-width", "1px", true, Some((0, 4))),
+            ("size.touch.min", "44px", false, None),
+            ("radius.button", "10px", true, Some((0, 24))),
+            ("space.page.padding", "12px", true, Some((0, 24))),
+            ("space.page.gap", "8px", true, Some((4, 16))),
+            ("space.sidebar.padding", "8px", true, Some((0, 16))),
+            ("space.sidebar.gap", "8px", true, Some((4, 16))),
+            ("font.size.label", "16px", true, Some((12, 28))),
+            ("font.weight.label", "600", true, Some((300, 900))),
+            ("font.line-height.label", "1.2", true, Some((100, 160))),
+            (
+                "font.family.label",
+                "system-ui, Segoe UI, Roboto, sans-serif",
+                false,
+                None,
+            ),
+            ("motion.page-transition", "200ms", true, Some((0, 400))),
+            ("motion.press-feedback", "80ms", true, Some((0, 200))),
+        ];
+        let catalog = catalog();
+        let mut actual: Vec<Entry> = catalog
+            .specs()
+            .iter()
+            .map(|s| {
+                let range = match s.rule {
+                    TokenRule::Range { min, max } => Some((min, max)),
+                    TokenRule::Any => None,
+                };
+                (
+                    s.path.to_string(),
+                    s.default.to_string(),
+                    s.themeable,
+                    range,
+                )
+            })
+            .collect();
+        let mut expected: Vec<Entry> = expected
+            .iter()
+            .map(|(p, v, t, r)| (p.to_string(), v.to_string(), *t, *r))
+            .collect();
+        actual.sort();
+        expected.sort();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn fixed_tokens_are_not_themeable() {
+        let catalog = catalog();
+        for path in FIXED_TOKENS {
+            assert!(!spec(&catalog, path).themeable, "`{path}` must be fixed");
+        }
+        for s in catalog.specs() {
+            if !FIXED_TOKENS.contains(&s.path.as_str()) {
+                assert!(s.themeable, "`{}` should be themeable", s.path);
+            }
+        }
+    }
+
+    /// The pairs of tokens that would share one CSS custom property.
+    fn css_name_collisions(paths: &[TokenPath]) -> Vec<(String, String)> {
+        let mut seen: std::collections::BTreeMap<String, &TokenPath> = Default::default();
+        let mut collisions = Vec::new();
+        for path in paths {
+            if let Some(other) = seen.insert(css_variable(path), path) {
+                collisions.push((other.to_string(), path.to_string()));
+            }
+        }
+        collisions
+    }
+
+    #[test]
+    fn css_variable_names_are_unique() {
+        let paths: Vec<TokenPath> = catalog().specs().iter().map(|s| s.path.clone()).collect();
+        assert_eq!(paths.len(), 25);
+        assert_eq!(css_name_collisions(&paths), vec![]);
+        // `a.b-c` and `a.b.c` are two tokens but one `--plinth-a-b-c`.
+        let clash = [
+            TokenPath::new("a.b-c").unwrap(),
+            TokenPath::new("a.b.c").unwrap(),
+        ];
+        assert_eq!(
+            css_name_collisions(&clash),
+            vec![("a.b-c".to_string(), "a.b.c".to_string())]
+        );
+    }
+
+    #[test]
+    fn button_min_never_goes_below_the_touch_floor() {
+        let catalog = catalog();
+        let touch = px(&catalog, "size.touch.min");
+        assert_eq!(touch, 44, "WCAG 2.5.5 target size");
+        let (min, _) = range(&catalog, "size.button.min");
+        assert!(min >= touch, "size.button.min can go down to {min}px");
+    }
+
+    #[test]
+    fn sidebar_width_always_leaves_a_touch_target() {
+        let catalog = catalog();
+        let (narrowest, _) = range(&catalog, "size.sidebar.width");
+        let (_, widest_padding) = range(&catalog, "space.sidebar.padding");
+        let touch = px(&catalog, "size.touch.min");
+        // 96 - 2 * 16 = 64 >= 44
+        assert!(
+            narrowest.saturating_sub(2 * widest_padding) >= touch,
+            "a {narrowest}px sidebar with {widest_padding}px padding leaves less than {touch}px"
+        );
+    }
+
+    #[test]
+    fn gaps_never_merge_targets() {
+        // Two targets closer than this read as one under a finger.
+        const MIN_GAP_PX: u16 = 4;
+        let catalog = catalog();
+        for path in ["space.page.gap", "space.sidebar.gap"] {
+            let (min, _) = range(&catalog, path);
+            assert!(min >= MIN_GAP_PX, "`{path}` can go down to {min}px");
+        }
+    }
+
+    #[test]
+    fn every_themeable_scalar_token_has_a_range() {
+        for s in catalog().specs() {
+            let scalar = !matches!(s.default.kind(), TokenKind::Color | TokenKind::FontFamily);
+            if s.themeable && scalar {
+                assert!(
+                    matches!(s.rule, TokenRule::Range { .. }),
+                    "`{}` can be themed to any value",
+                    s.path
+                );
+            }
+        }
+    }
+
+    /// The WCAG 2.x relative luminance of an sRGB colour.
+    fn luminance(c: Srgb8) -> f64 {
+        let linear = |byte: u8| {
+            let v = f64::from(byte) / 255.0;
+            if v <= 0.04045 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b)
+    }
+
+    /// The WCAG 2.x contrast ratio, from 1 to 21.
+    fn contrast(a: Srgb8, b: Srgb8) -> f64 {
+        let (la, lb) = (luminance(a), luminance(b));
+        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+    }
+
+    fn assert_contrast(catalog: &ThemeCatalog, fg: &str, bg: &str, floor: f64) {
+        let ratio = contrast(color(catalog, fg), color(catalog, bg));
+        assert!(
+            ratio >= floor,
+            "`{fg}` on `{bg}` is {ratio:.2}:1, below {floor}:1"
+        );
+    }
+
+    #[test]
+    fn contrast_follows_the_wcag_formula() {
+        let black = Srgb8 { r: 0, g: 0, b: 0 };
+        let white = Srgb8 {
+            r: 255,
+            g: 255,
+            b: 255,
+        };
+        assert!((contrast(black, white) - 21.0).abs() < 1e-9);
+        assert!((contrast(white, white) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn default_text_pairs_contrast() {
+        let catalog = catalog();
+        for (fg, bg) in [
+            ("color.button.text", "color.button.background"),
+            ("color.button.text", "color.button.pressed-background"),
+            (
+                "color.button.toggled-text",
+                "color.button.toggled-background",
+            ),
+            ("color.quit.text", "color.quit.background"),
+        ] {
+            assert_contrast(&catalog, fg, bg, 4.5);
+        }
+    }
+
+    #[test]
+    fn default_borders_contrast() {
+        let catalog = catalog();
+        for bg in ["color.panel.background", "color.sidebar.background"] {
+            // WCAG 1.4.11, non-text contrast.
+            assert_contrast(&catalog, "color.button.border", bg, 3.0);
         }
     }
 }

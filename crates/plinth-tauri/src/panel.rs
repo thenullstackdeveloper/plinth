@@ -613,6 +613,18 @@ mod tests {
     }
 
     #[test]
+    fn theme_fixtures_resolve_all_25_tokens() {
+        let default = fixture(DEFAULT_THEME_FIXTURE);
+        let slice = fixture(SLICE_THEME_FIXTURE);
+        let (default, slice) = (default.as_object().unwrap(), slice.as_object().unwrap());
+        assert_eq!(default.len(), 25);
+        // The slice theme is the default with one override, and nothing else.
+        let mut expected = default.clone();
+        expected.insert("--plinth-color-button-background".into(), "#1e1e2e".into());
+        assert_eq!(slice, &expected);
+    }
+
+    #[test]
     fn themed_template_renders_the_ui_slice_fixture() {
         let themed =
             format!("{WOW_PHASE1_TEMPLATE}theme:\n  color.button.background: \"#1e1e2e\"\n");

@@ -1,3 +1,27 @@
 {
-  "--plinth-color-button-background": "#1e1e2e"
+  "--plinth-color-panel-background": "#11121a",
+  "--plinth-color-sidebar-background": "#191b26",
+  "--plinth-color-button-background": "#1e1e2e",
+  "--plinth-color-button-border": "#626a90",
+  "--plinth-color-button-text": "#e6e8f0",
+  "--plinth-color-button-pressed-background": "#343a55",
+  "--plinth-color-button-toggled-background": "#e0b05c",
+  "--plinth-color-button-toggled-text": "#15161e",
+  "--plinth-color-quit-background": "#b23a48",
+  "--plinth-color-quit-text": "#ffffff",
+  "--plinth-size-sidebar-width": "128px",
+  "--plinth-size-button-min": "64px",
+  "--plinth-size-button-border-width": "1px",
+  "--plinth-size-touch-min": "44px",
+  "--plinth-radius-button": "10px",
+  "--plinth-space-page-padding": "12px",
+  "--plinth-space-page-gap": "8px",
+  "--plinth-space-sidebar-padding": "8px",
+  "--plinth-space-sidebar-gap": "8px",
+  "--plinth-font-size-label": "16px",
+  "--plinth-font-weight-label": "600",
+  "--plinth-font-line-height-label": "1.2",
+  "--plinth-font-family-label": "system-ui, Segoe UI, Roboto, sans-serif",
+  "--plinth-motion-page-transition": "200ms",
+  "--plinth-motion-press-feedback": "80ms"
 }
