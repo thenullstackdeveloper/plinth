@@ -239,8 +239,13 @@ pub fn query_render_state(template: &Template, state: &RuntimeState) -> RenderSt
     let pages = template
         .pages()
         .iter()
-        .map(|p| PageView {
-            components: p.components().iter().map(to_view).collect(),
+        .map(|p| {
+            let grid = p.grid_size();
+            PageView {
+                components: p.components().iter().map(to_view).collect(),
+                rows: grid.rows,
+                cols: grid.cols,
+            }
         })
         .collect();
 

@@ -585,4 +585,25 @@ mod tests {
             }]
         );
     }
+
+    #[test]
+    fn render_state_carries_rows_and_cols() {
+        let at = |id: &str, row: u16, col: u16| Component {
+            position: ComponentPosition { row, col },
+            ..comp(id, 0, Action::App(AppAction::NextPage))
+        };
+        let page = Page::new(vec![at("a", 0, 0), at("b", 2, 1), at("c", 1, 3)]).unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![],
+        };
+        let template = Template::new(meta(), vec![page], sidebar).unwrap();
+
+        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right));
+
+        let page = &render.pages[0];
+        assert_eq!((page.rows, page.cols), (3, 4));
+        let cells: Vec<(u16, u16)> = page.components.iter().map(|c| (c.row, c.col)).collect();
+        assert_eq!(cells, vec![(0, 0), (2, 1), (1, 3)]);
+    }
 }

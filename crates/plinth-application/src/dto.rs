@@ -35,6 +35,10 @@ pub struct ComponentView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PageView {
     pub components: Vec<ComponentView>,
+    /// Grid rows: the largest component `row` plus one.
+    pub rows: u32,
+    /// Grid columns: the largest component `col` plus one.
+    pub cols: u32,
 }
 
 /// One design token as a CSS custom property: `--plinth-color-button-background`

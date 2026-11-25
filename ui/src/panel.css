@@ -46,6 +46,17 @@ body {
   height: 100%;
 }
 
+/* The buttons in a grid of `row`/`col` cells (the tracks are set by PageView
+   from the page's size), with the page's gap and padding from the design
+   tokens. `border-box` keeps the padding inside the surface, so its box is
+   still the page's box; no `transform` here, Motion's drag owns it. */
+.page-surface {
+  display: grid;
+  box-sizing: border-box;
+  padding: var(--plinth-space-page-padding);
+  gap: var(--plinth-space-page-gap);
+}
+
 /* Buttons take their colours from the design tokens, set on .panel. Only
    properties that cannot fetch anything (`background-color`, never the
    `background` shorthand). */

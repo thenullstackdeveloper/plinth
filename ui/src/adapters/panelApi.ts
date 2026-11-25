@@ -3,6 +3,9 @@ import { listen } from "@tauri-apps/api/event";
 
 export type ComponentDto = {
   id: string;
+  /** The component's cell, zero-based. */
+  row: number;
+  col: number;
   label: string | null;
   actionKind: "game" | "app" | "keys";
   /** The app action the component triggers (`"toggle_lock"`, …), or null for game and key buttons. */
@@ -12,8 +15,15 @@ export type ComponentDto = {
 /** CSS custom property → value (`"--plinth-color-button-background"` → `"#262a3b"`), resolved by Rust. */
 export type ThemeVars = Record<string, string>;
 
+/** One page: its components and the size of its grid (the largest `row` and `col` plus one). */
+export type PageDto = {
+  components: ComponentDto[];
+  rows: number;
+  cols: number;
+};
+
 export type RenderView = {
-  pages: { components: ComponentDto[] }[];
+  pages: PageDto[];
   currentPage: number;
   locked: boolean;
   sidebar: ComponentDto[];

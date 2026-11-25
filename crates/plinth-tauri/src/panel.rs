@@ -78,12 +78,17 @@ pub struct RenderView {
 #[serde(rename_all = "camelCase")]
 pub struct PageViewDto {
     pub components: Vec<ComponentDto>,
+    pub rows: u32,
+    pub cols: u32,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ComponentDto {
     pub id: String,
+    /// The component's cell, zero-based; the UI places it at `row + 1`.
+    pub row: u16,
+    pub col: u16,
     pub label: Option<String>,
     /// `"game"`, `"app"` or `"keys"`.
     pub action_kind: &'static str,
@@ -233,6 +238,8 @@ where
                 .into_iter()
                 .map(|page| PageViewDto {
                     components: page.components.into_iter().map(dto).collect(),
+                    rows: page.rows,
+                    cols: page.cols,
                 })
                 .collect(),
             current_page: state.current_page,
@@ -272,6 +279,8 @@ where
             });
         ComponentDto {
             id: view.id,
+            row: view.row,
+            col: view.col,
             label: view.label,
             action_kind: match view.action_kind {
                 ActionKind::Game => "game",
@@ -516,6 +525,32 @@ mod tests {
                 KeyEvent::up(ScanCode(42)),
             ]
         );
+    }
+
+    #[test]
+    fn render_carries_grid_positions() {
+        let view = panel_with(WOW_DEFAULT_KEYS_TEMPLATE).render();
+        let sizes: Vec<(u32, u32)> = view.pages.iter().map(|p| (p.rows, p.cols)).collect();
+        assert_eq!(sizes, vec![(2, 3), (2, 3), (1, 3)]);
+        let cells: Vec<(&str, u16, u16)> = view.pages[0]
+            .components
+            .iter()
+            .map(|c| (c.id.as_str(), c.row, c.col))
+            .collect();
+        assert_eq!(
+            cells,
+            vec![
+                ("action_1", 0, 0),
+                ("action_2", 0, 1),
+                ("action_3", 0, 2),
+                ("action_4", 1, 0),
+                ("action_5", 1, 1),
+                ("action_6", 1, 2),
+            ]
+        );
+        let json = serde_json::to_value(&view).unwrap();
+        assert_eq!(json["pages"][0]["rows"], 2);
+        assert_eq!(json["pages"][0]["components"][4]["col"], 1);
     }
 
     #[test]

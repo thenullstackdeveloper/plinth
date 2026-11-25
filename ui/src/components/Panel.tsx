@@ -21,6 +21,8 @@ export function Panel() {
       {view.sidebarSide === "left" && sidebar}
       <PageView
         components={page.components}
+        rows={page.rows}
+        cols={page.cols}
         pageIndex={view.currentPage}
         direction={lastDirection}
         locked={view.locked}

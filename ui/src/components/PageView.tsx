@@ -6,6 +6,11 @@ import { createDragGuard } from "../dragGuard";
 import { usePanelStore } from "../store/panelStore";
 import { handleSwipeEnd } from "../swipe";
 
+/** `n` grid tracks, each at least a button's minimum size, sharing the rest. */
+function tracks(n: number): string {
+  return `repeat(${n}, minmax(var(--plinth-size-button-min), 1fr))`;
+}
+
 const pageVariants = {
   enter: (dir: number) => ({ transform: `translateX(${dir * 100}%)`, opacity: 0 }),
   center: { transform: "translateX(0%)", opacity: 1 },
@@ -19,6 +24,9 @@ const pageVariants = {
  */
 export function PageView(props: {
   components: ComponentDto[];
+  /** The size of the page's grid. */
+  rows: number;
+  cols: number;
   pageIndex: number;
   direction: NavDirection | null;
   locked: boolean;
@@ -44,6 +52,7 @@ export function PageView(props: {
         >
           <motion.div
             className="page-surface"
+            style={{ gridTemplateRows: tracks(props.rows), gridTemplateColumns: tracks(props.cols) }}
             drag={props.locked ? false : "x"}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.2}
@@ -57,6 +66,7 @@ export function PageView(props: {
               <button
                 key={component.id}
                 type="button"
+                style={{ gridRow: component.row + 1, gridColumn: component.col + 1 }}
                 onClick={() => {
                   if (!guard.shouldIgnoreClick()) void press(component.id);
                 }}
