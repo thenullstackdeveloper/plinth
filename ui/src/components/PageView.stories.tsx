@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { invoke } from "@tauri-apps/api/core";
-import { expect, mocked } from "storybook/test";
+import { type ComponentProps, useState } from "react";
+import { expect, mocked, waitFor } from "storybook/test";
 
 import { usePanelStore } from "../store/panelStore";
 import { component, inRow, viewWith } from "../testing/views";
@@ -17,7 +18,7 @@ function surface(canvasElement: HTMLElement): HTMLElement {
 
 const meta = {
   component: PageView,
-  args: { components: [worldMap], rows: 1, cols: 1, pageIndex: 0, direction: null, locked: false },
+  args: { components: [worldMap], rows: 1, cols: 1, pageIndex: 0, direction: null, locked: false, transitionMs: 200 },
   beforeEach: () => {
     usePanelStore.setState(usePanelStore.getInitialState(), true);
     mocked(invoke).mockResolvedValue(viewWith([[worldMap]]));
@@ -147,5 +148,32 @@ export const LongLabelEllipsis: Story = {
     const style = getComputedStyle(label);
     await expect(style.textOverflow).toBe("ellipsis");
     await expect(style.overflowX).toBe("hidden");
+  },
+};
+
+/** A page that a "Turn page" button moves to the next one, as a swipe would. */
+function Turning(props: ComponentProps<typeof PageView>) {
+  const [pageIndex, setPageIndex] = useState(props.pageIndex);
+  return (
+    <>
+      <button type="button" onClick={() => setPageIndex((i) => i + 1)}>
+        Turn page
+      </button>
+      <PageView {...props} pageIndex={pageIndex} direction="next" />
+    </>
+  );
+}
+
+export const PageChangeLastsTransitionMs: Story = {
+  // `motion.page-transition` at its maximum, so it cannot pass for the old fixed 0.2s.
+  args: { transitionMs: 400 },
+  render: (args) => <Turning {...args} />,
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Turn page" }));
+    // The page leaving slides out and fades over the prop's duration: Motion
+    // runs both as Web Animations, so their timing can be read.
+    await waitFor(() => expect(canvasElement.getAnimations({ subtree: true }).length).toBeGreaterThan(0));
+    const durations = canvasElement.getAnimations({ subtree: true }).map((a) => a.effect?.getTiming().duration);
+    await expect(durations).toEqual(durations.map(() => 400));
   },
 };

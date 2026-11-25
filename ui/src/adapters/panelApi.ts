@@ -29,6 +29,8 @@ export type RenderView = {
   sidebar: ComponentDto[];
   sidebarSide: "left" | "right";
   theme: ThemeVars;
+  /** How long the change of page takes, from `motion.page-transition`. */
+  pageTransitionMs: number;
 };
 
 export type NavDirection = "next" | "prev";

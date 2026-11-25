@@ -59,4 +59,6 @@ pub struct RenderState {
     pub locked: bool,
     /// The template's resolved theme, every token of the catalog.
     pub theme: Vec<ThemeVar>,
+    /// How long the change of page takes, from `motion.page-transition`.
+    pub page_transition_ms: u16,
 }

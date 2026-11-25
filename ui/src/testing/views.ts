@@ -35,6 +35,8 @@ export function viewWith(pages: ComponentDto[][], overrides: Partial<RenderView>
     sidebar: [],
     sidebarSide: "right",
     theme: defaultTheme,
+    // `motion.page-transition` in default-theme.json.
+    pageTransitionMs: 200,
     ...overrides,
   };
 }

@@ -72,6 +72,8 @@ pub struct RenderView {
     pub sidebar_side: &'static str,
     /// CSS custom property → value, for every design token; an object in JSON.
     pub theme: BTreeMap<String, String>,
+    /// How long the change of page takes, in milliseconds.
+    pub page_transition_ms: u16,
 }
 
 #[derive(Debug, Serialize)]
@@ -254,6 +256,7 @@ where
                 .into_iter()
                 .map(|var| (var.name, var.value))
                 .collect(),
+            page_transition_ms: state.page_transition_ms,
         }
     }
 
@@ -681,6 +684,16 @@ mod tests {
             theme_json(&panel_with(&themed)),
             fixture(SLICE_THEME_FIXTURE)
         );
+    }
+
+    #[test]
+    fn render_view_carries_the_page_transition_in_ms() {
+        let json = |panel: &TestPanel<InMemoryConfigStore>| {
+            serde_json::to_value(panel.render()).unwrap()["pageTransitionMs"].clone()
+        };
+        assert_eq!(json(&panel_with(WOW_PHASE1_TEMPLATE)), 200);
+        let themed = format!("{WOW_PHASE1_TEMPLATE}theme:\n  motion.page-transition: \"150ms\"\n");
+        assert_eq!(json(&panel_with(&themed)), 150);
     }
 
     // --- Fitting the panel window ---

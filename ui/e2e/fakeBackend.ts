@@ -69,6 +69,8 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
       sidebar,
       sidebarSide: state.sidebarSide,
       theme: opts.theme,
+      // `motion.page-transition` of the default theme.
+      pageTransitionMs: 200,
     });
 
     const callbacks = new Map<number, unknown>();

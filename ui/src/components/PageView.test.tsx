@@ -14,7 +14,7 @@ beforeEach(() => {
 
 function showing(components: ComponentDto[], rows: number, cols: number) {
   return render(
-    <PageView components={components} rows={rows} cols={cols} pageIndex={0} direction={null} locked={false} />,
+    <PageView components={components} rows={rows} cols={cols} pageIndex={0} direction={null} locked={false} transitionMs={200} />,
   );
 }
 

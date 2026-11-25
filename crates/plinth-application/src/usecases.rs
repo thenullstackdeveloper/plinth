@@ -262,5 +262,6 @@ pub fn query_render_state(template: &Template, state: &RuntimeState) -> RenderSt
         sidebar_side: state.sidebar_side(),
         locked: state.is_locked(),
         theme: theme_vars(template.theme()),
+        page_transition_ms: template.theme().ms("motion.page-transition").unwrap_or(0),
     }
 }

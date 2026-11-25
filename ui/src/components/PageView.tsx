@@ -3,6 +3,7 @@ import { useRef } from "react";
 
 import type { ComponentDto, NavDirection } from "../adapters/panelApi";
 import { createDragGuard } from "../dragGuard";
+import { pageTransition } from "../motion";
 import { usePanelStore } from "../store/panelStore";
 import { handleSwipeEnd } from "../swipe";
 
@@ -30,6 +31,8 @@ export function PageView(props: {
   pageIndex: number;
   direction: NavDirection | null;
   locked: boolean;
+  /** How long the change of page takes, in milliseconds. */
+  transitionMs: number;
 }) {
   const press = usePanelStore((s) => s.press);
   const navigate = usePanelStore((s) => s.navigate);
@@ -48,7 +51,7 @@ export function PageView(props: {
           initial="enter"
           animate="center"
           exit="exit"
-          transition={{ duration: 0.2 }}
+          transition={pageTransition(props.transitionMs)}
         >
           <motion.div
             className="page-surface"

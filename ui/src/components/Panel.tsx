@@ -26,6 +26,7 @@ export function Panel() {
         pageIndex={view.currentPage}
         direction={lastDirection}
         locked={view.locked}
+        transitionMs={view.pageTransitionMs}
       />
       {view.sidebarSide === "right" && sidebar}
     </div>
