@@ -14,10 +14,12 @@ export function Sidebar(props: { components: ComponentDto[]; locked: boolean }) 
           <button
             key={component.id}
             type="button"
+            className="plinth-button"
+            data-app-action={component.appAction ?? undefined}
             aria-pressed={isLock ? props.locked : undefined}
             onClick={() => void press(component.id)}
           >
-            {label}
+            <span className="plinth-button__label">{label}</span>
           </button>
         );
       })}

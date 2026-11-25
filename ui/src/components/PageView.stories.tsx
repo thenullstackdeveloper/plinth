@@ -79,3 +79,73 @@ export const GridPlacement: Story = {
     await expect(d.top).toBeGreaterThan(c.bottom);
   },
 };
+
+/** The button the story renders with this accessible name. */
+function buttonOf(canvasElement: HTMLElement, name: string): HTMLElement {
+  const button = [...canvasElement.querySelectorAll<HTMLElement>("button")].find((b) => b.textContent === name);
+  if (!button) throw new Error(`no button ${name}`);
+  return button;
+}
+
+export const TypographyFromTokens: Story = {
+  play: async ({ canvasElement }) => {
+    const style = getComputedStyle(buttonOf(canvasElement, "World map"));
+    // `font.size.label` 16px and `font.weight.label` 600 in default-theme.json.
+    await expect(style.fontSize).toBe("16px");
+    await expect(style.fontWeight).toBe("600");
+    // `font.line-height.label` 1.2 and `font.family.label`.
+    await expect(style.lineHeight).toBe(`${16 * 1.2}px`);
+    await expect(style.fontFamily).toBe("system-ui, \"Segoe UI\", Roboto, sans-serif");
+  },
+};
+
+export const ShapeAndColoursFromTokens: Story = {
+  play: async ({ canvasElement }) => {
+    const style = getComputedStyle(buttonOf(canvasElement, "World map"));
+    // `color.button.background` #262a3b and `color.button.text` #e6e8f0.
+    await expect(style.backgroundColor).toBe("rgb(38, 42, 59)");
+    await expect(style.color).toBe("rgb(230, 232, 240)");
+    // `size.button.border-width` 1px of `color.button.border` #626a90, and `radius.button` 10px.
+    await expect(style.borderTopWidth).toBe("1px");
+    await expect(style.borderTopStyle).toBe("solid");
+    await expect(style.borderTopColor).toBe("rgb(98, 106, 144)");
+    await expect(style.borderTopLeftRadius).toBe("10px");
+    // Made for a finger: no double-tap zoom, and a press shows within
+    // `motion.press-feedback` 80ms.
+    await expect(style.touchAction).toBe("manipulation");
+    await expect(style.transitionProperty).toBe("background-color");
+    await expect(style.transitionDuration).toBe("0.08s");
+  },
+};
+
+const LONG_LABEL = "A label far too long for any button of the panel to show all";
+
+export const LongLabelEllipsis: Story = {
+  // Four buttons side by side, so each cell is narrower than the label.
+  args: {
+    components: inRow([component("long", LONG_LABEL), component("b"), component("c"), component("d")]),
+    rows: 1,
+    cols: 4,
+  },
+  play: async ({ canvasElement }) => {
+    await expect(LONG_LABEL).toHaveLength(60);
+    const button = buttonOf(canvasElement, LONG_LABEL);
+    const label = button.querySelector<HTMLElement>(".plinth-button__label");
+    if (!label) throw new Error("no .plinth-button__label");
+    const cell = button.getBoundingClientRect();
+    const neighbour = buttonOf(canvasElement, "b").getBoundingClientRect();
+    // The button keeps its cell, as wide as its neighbour's…
+    await expect(cell.width).toBeCloseTo(neighbour.width, 1);
+    // …and the label stays inside it on one line, cut with an ellipsis.
+    const text = label.getBoundingClientRect();
+    await expect(text.left).toBeGreaterThanOrEqual(cell.left);
+    await expect(text.right).toBeLessThanOrEqual(cell.right);
+    await expect(text.height).toBeCloseTo(16 * 1.2, 0);
+    await expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
+    // The ellipsis is painted, not laid out: it shows only on a box that
+    // clips what it cuts.
+    const style = getComputedStyle(label);
+    await expect(style.textOverflow).toBe("ellipsis");
+    await expect(style.overflowX).toBe("hidden");
+  },
+};

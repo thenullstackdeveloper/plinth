@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { expect, mocked } from "storybook/test";
 
 import { usePanelStore } from "../store/panelStore";
+import sliceTheme from "../testing/fixtures/slice-theme.json";
+import { PanelFrame } from "../testing/PanelFrame";
 import { appComponent, viewWith } from "../testing/views";
 import { Sidebar } from "./Sidebar";
 
@@ -108,5 +110,47 @@ export const ButtonsShareTheHeight: Story = {
     }
     // Never shorter than a finger: `size.touch.min` 44px.
     for (const button of buttons) await expect(getComputedStyle(button).minHeight).toBe("44px");
+  },
+};
+
+/** The colours Chromium paints a button with, by its accessible name. */
+function coloursOf(canvasElement: HTMLElement, name: string): { background: string; text: string } {
+  const button = [...canvasElement.querySelectorAll<HTMLElement>("button")].find((b) => b.textContent === name);
+  if (!button) throw new Error(`no button ${name}`);
+  const style = getComputedStyle(button);
+  return { background: style.backgroundColor, text: style.color };
+}
+
+export const QuitHasFixedColours: Story = {
+  play: async ({ canvasElement }) => {
+    // `color.quit.background` #b23a48 and `color.quit.text` #ffffff, fixed in tokens.json.
+    await expect(coloursOf(canvasElement, "Quit")).toEqual({ background: "rgb(178, 58, 72)", text: "rgb(255, 255, 255)" });
+  },
+};
+
+export const QuitIgnoresAButtonTheme: Story = {
+  // slice-theme.json sets `color.button.background` to #1e1e2e.
+  decorators: [
+    (Story) => (
+      <PanelFrame theme={sliceTheme}>
+        <Story />
+      </PanelFrame>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    // The theme reaches the other buttons…
+    await expect(coloursOf(canvasElement, "Lock").background).toBe("rgb(30, 30, 46)");
+    // …but not Quit.
+    await expect(coloursOf(canvasElement, "Quit")).toEqual({ background: "rgb(178, 58, 72)", text: "rgb(255, 255, 255)" });
+  },
+};
+
+export const LockToggledColours: Story = {
+  args: { locked: true },
+  play: async ({ canvasElement }) => {
+    // `color.button.toggled-background` #e0b05c and `color.button.toggled-text` #15161e.
+    await expect(coloursOf(canvasElement, "Unlock")).toEqual({ background: "rgb(224, 176, 92)", text: "rgb(21, 22, 30)" });
+    // A button that is not toggled keeps the resting colours.
+    await expect(coloursOf(canvasElement, "Switch side")).toEqual({ background: "rgb(38, 42, 59)", text: "rgb(230, 232, 240)" });
   },
 };

@@ -271,3 +271,31 @@ test("a hostile theme value never reaches the panel and fetches nothing", async 
   expect(panel).toEqual({ variable: "", image: "none" });
   expect(requests.filter((url) => url.startsWith("http://127.0.0.1:9/"))).toEqual([]);
 });
+
+test("a button held down shows the pressed colour", async ({ page }) => {
+  await page.goto("/");
+  const worldMap = page.getByRole("button", { name: "World map" });
+  await expect(worldMap).toBeVisible();
+  const b = await box(worldMap);
+
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  // #343a55, `color.button.pressed-background`, once the press feedback has run.
+  await expect.poll(() => backgroundOf(worldMap)).toBe("rgb(52, 58, 85)");
+  await page.mouse.up();
+  await expect.poll(() => backgroundOf(worldMap)).toBe("rgb(38, 42, 59)");
+});
+
+test("Quit keeps its colours under a template theme", async ({ page }) => {
+  await installFakeBackend(page, { theme: sliceTheme });
+  await page.goto("/");
+  const quit = page.getByRole("button", { name: "Quit" });
+  await expect(quit).toBeVisible();
+  // The theme reaches the other buttons (#1e1e2e)…
+  expect(await backgroundOf(page.getByRole("button", { name: "Lock" }))).toBe("rgb(30, 30, 46)");
+  // …but Quit keeps the fixed `color.quit.background` #b23a48 and `color.quit.text` #ffffff.
+  expect(await quit.evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])).toEqual([
+    "rgb(178, 58, 72)",
+    "rgb(255, 255, 255)",
+  ]);
+});

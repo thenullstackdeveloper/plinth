@@ -85,13 +85,46 @@ body {
   gap: var(--plinth-space-page-gap);
 }
 
-/* Buttons take their colours from the design tokens, set on .panel. Only
-   properties that cannot fetch anything (`background-color`, never the
-   `background` shorthand). */
-.page button,
-.sidebar button {
+/* Every panel button, on a page or in the sidebar, styled from the design
+   tokens set on .panel. Only properties that cannot fetch anything
+   (`background-color`, never the `background` shorthand). */
+.plinth-button {
   background-color: var(--plinth-color-button-background);
-  /* Light text on the dark token background; the value of the approved
-     `color.button.text`, a literal until that token exists. */
-  color: #e6e8f0;
+  color: var(--plinth-color-button-text);
+  border: var(--plinth-size-button-border-width) solid var(--plinth-color-button-border);
+  border-radius: var(--plinth-radius-button);
+  font-family: var(--plinth-font-family-label);
+  font-size: var(--plinth-font-size-label);
+  font-weight: var(--plinth-font-weight-label);
+  line-height: var(--plinth-font-line-height-label);
+  /* A tap is a press at once, never the start of a double-tap zoom. */
+  touch-action: manipulation;
+  transition: background-color var(--plinth-motion-press-feedback);
+}
+
+/* Feedback under the finger while the button is held down. */
+.plinth-button:active {
+  background-color: var(--plinth-color-button-pressed-background);
+}
+
+/* A toggle that is on, such as the lock. */
+.plinth-button[aria-pressed="true"] {
+  background-color: var(--plinth-color-button-toggled-background);
+  color: var(--plinth-color-button-toggled-text);
+}
+
+/* Quit takes the fixed `color.quit.*` tokens, at rest and pressed, so no
+   theme can disguise it. Last, to win over the states above. */
+.plinth-button[data-app-action="quit"] {
+  background-color: var(--plinth-color-quit-background);
+  color: var(--plinth-color-quit-text);
+}
+
+/* A label longer than its button is cut on one line with an ellipsis, so it
+   never stretches the cell or spills out of it. */
+.plinth-button__label {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

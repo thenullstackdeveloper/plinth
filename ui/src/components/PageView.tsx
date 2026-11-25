@@ -66,12 +66,14 @@ export function PageView(props: {
               <button
                 key={component.id}
                 type="button"
+                className="plinth-button"
+                data-app-action={component.appAction ?? undefined}
                 style={{ gridRow: component.row + 1, gridColumn: component.col + 1 }}
                 onClick={() => {
                   if (!guard.shouldIgnoreClick()) void press(component.id);
                 }}
               >
-                {component.label ?? component.id}
+                <span className="plinth-button__label">{component.label ?? component.id}</span>
               </button>
             ))}
           </motion.div>
