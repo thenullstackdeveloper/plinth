@@ -2,8 +2,8 @@
 
 > **Status:** MVP in progress — Windows first.
 > This document holds the vision, the decisions, the phases and the open debates. It is not a
-> build plan: each phase is planned one at a time in its own document under `docs/flow/` before
-> any code, and tracked as a task on the project board.
+> build plan: each phase is planned one at a time in its own document before any code, and
+> tracked as a task on the project board.
 
 ---
 

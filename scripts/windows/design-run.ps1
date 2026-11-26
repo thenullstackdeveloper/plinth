@@ -1,6 +1,6 @@
-# design-run.ps1 - runs points 4 to 8 of the design test in docs/flow/2026-11-20-handoff-windows.md
-# with real mouse input: a button held and released, neighbouring buttons in a row, swipes from a
-# gap, from below the buttons and from a button, the lock, and drags across the sidebar. Every
+# design-run.ps1 - runs points 4 to 8 of the Windows design test with real mouse input: a
+# button held and released, neighbouring buttons in a row, swipes from a gap, from below the
+# buttons and from a button, the lock, and drags across the sidebar. Every
 # capture goes to the panel-driver.ps1 folder ($env:PLINTH_SHOTS, or $env:TEMP\plinth-shots).
 #
 # Windows PowerShell 5.1, from the repo root:

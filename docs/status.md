@@ -1,8 +1,8 @@
 # Project status and handoff
 
 Snapshot of where Plinth stands and how to continue. Development happens on a Mac, in large
-blocks; each finished block is tagged and built on the Windows machine for game testing (see
-`docs/flow/2026-11-20-handoff-windows.md`).
+blocks; each finished block is tagged and built on the Windows machine for game testing,
+following a test guide kept outside this repository.
 
 **Last updated:** 2026-11-25
 
@@ -143,9 +143,8 @@ pnpm --dir ui install && pnpm --dir ui test                    # frontend tests
 ```
 
 On Windows: Rust stable with the MSVC toolchain, Visual Studio 2022 Build Tools ("Desktop
-development with C++"), Node 24 LTS and pnpm 10.28.0 (see
-`docs/flow/2026-11-20-tauri-panel/windows-build.md`). `scripts/fitness.sh` is a bash script: run
-it from Git Bash.
+development with C++"), Node 24 LTS and pnpm 10.28.0. `scripts/fitness.sh` is a bash script:
+run it from Git Bash.
 
 Rust 1.97.1 on the Mac. On macOS, `rustup` comes from Homebrew and its binaries live in
 `/opt/homebrew/opt/rustup/bin` — add that to `PATH`.
@@ -183,8 +182,8 @@ The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 3. ~~WoW: literal keys and macros in templates, real templates, manual game selection~~ —
    **done, PASS** (2026-11-24, `v0.3.0`). The template with the author's own key
    bindings comes later, by editing a file in the templates folder.
-   Design system (tokens, template themes, touch layout): **done on `feat/design-system`**,
-   waiting for the Windows test ("Prueba del diseño" in `docs/flow/2026-11-20-handoff-windows.md`).
+   Design system (tokens, template themes, touch layout): **done**, on `main`, PASS on Windows
+   with the mouse (2026-11-25); touch with a finger and real WoW are still to test.
 4. **Next:** packaging, docs, license, public repo — end of MVP.
 5. Star Citizen as second game: export real keybinds and feed `keybinds_sc`, live data.
 6. Linux: uinput + Hyprland, reusing the validated work.
@@ -192,5 +191,5 @@ The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
 ## 8. Non-negotiable rules
 
 See [`roadmap.md`](roadmap.md#non-negotiable-rules). Everything inside the repo is written in
-English, except the planning documents under `docs/flow/`; commits follow Conventional Commits
+English; commits follow Conventional Commits
 (enforced by `.githooks/commit-msg`).
