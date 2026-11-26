@@ -20,7 +20,8 @@
 # calls SetProcessDPIAware when it loads, so GetWindowRect, SetCursorPos and CopyFromScreen all
 # work in physical pixels, whatever the display scale.
 #
-# The window is found by process: the first plinth-tauri process that has a main window.
+# The window is found by process: the first Plinth process (the installed Plinth.exe) or
+# plinth-tauri process (a plain cargo build) that has a main window.
 #
 # Captures go to $env:PLINTH_SHOTS if it is set and to $env:TEMP\plinth-shots otherwise; the
 # folder is created if it does not exist.
@@ -48,7 +49,8 @@ if (-not $script:Shots) { $script:Shots = Join-Path $env:TEMP 'plinth-shots' }
 New-Item -ItemType Directory -Force -Path $script:Shots | Out-Null
 
 function Get-PanelRect {
-  $p = Get-Process plinth-tauri -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  $p = Get-Process -Name Plinth, plinth-tauri -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+  if (-not $p) { throw 'No Plinth window found: start the panel first.' }
   $r = New-Object PDRECT; [PD]::GetWindowRect($p.MainWindowHandle, [ref]$r) | Out-Null; $r
 }
 function Get-Foreground {

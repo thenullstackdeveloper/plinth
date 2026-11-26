@@ -94,3 +94,12 @@ fn the_installer_ships_the_licence_and_the_notices() {
         "THIRD-PARTY-NOTICES.md exists"
     );
 }
+
+#[test]
+fn the_installed_program_is_named_plinth() {
+    assert_eq!(
+        tauri_conf()["mainBinaryName"],
+        json!("Plinth"),
+        "the installed executable, and the name Task Manager shows, is Plinth.exe"
+    );
+}
