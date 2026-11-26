@@ -4,13 +4,13 @@ Snapshot of where Plinth stands and how to continue. Development happens on a Ma
 blocks; each finished block is tagged and built on the Windows machine for game testing,
 following a test guide kept outside this repository.
 
-**Last updated:** 2026-11-25
+**Last updated:** 2026-11-26
 
 ## 1. Where the project is
 
 | Area | State |
 |---|---|
-| Hexagonal core (`plinth-domain`, `plinth-application`, `plinth-infra`) | **Done**, fitness test passing (workspace: 219 Rust tests green on macOS) |
+| Hexagonal core (`plinth-domain`, `plinth-application`, `plinth-infra`) | **Done**, fitness test passing (workspace: 225 Rust tests green on macOS) |
 | Template contract (`schema/plinth.template.schema.json`) | Done. Phase 3: a component carries `action` or `keys` (literal keys: `"m"`, `"shift+1"`, or a list of up to 16 steps). Design system: an optional `theme` block, and a repeated key anywhere rejects the template |
 | **Design system** (`design/tokens.json`) | **Done**, on `main`. Tested on Windows with the mouse on 2026-11-25: **PASS**; still to confirm with the finger, against real WoW, and the `…` on a long label. 25 DTCG 2025.10 tokens (colours, sizes, spacing, type, motion), embedded in the binary; a template's `theme` overrides the 21 themeable ones within their ranges, and `Quit`'s colours, the 44px touch floor and the font are fixed. A template whose grid or sidebar does not fit 900×300 is rejected, and two buttons in one cell too. How to write a theme and every token's range: [`theming.md`](theming.md), kept in step with the tokens by a test |
 | SC keybind adapter (`keybinds_sc`) | Done for single-key bindings; chords/joystick unsupported (known limitation) |
@@ -18,7 +18,8 @@ following a test guide kept outside this repository.
 | **Windows input adapter (`input_windows`)** | **Done** (`SendInput`), unit-tested, validated against WoW (2026-11-20) |
 | **Windows focus spike (`spike_win.exe`)** | **Run against WoW: PASS** (2026-11-20) |
 | **`plinth-tauri` (composition root + window)** | Phase 1 focus test with the real window **PASS** (2026-11-20). Phase 2: three-page demo template, `navigate` command, sidebar side remembered in `prefs.json`, `app.quit` and a system tray `Quit`. Phase 3: templates in `%APPDATA%\plinth\templates` (seeded once with `wow-default-keys.yaml` and `wow-demo.yaml`, never overwritten), started with the last chosen one, picked from the tray's `Templates` submenu. Phases 2 and 3 tested together with `v0.3.0` against WoW: **PASS** (2026-11-24), with one open defect (see section 2) |
-| React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store. Phase 3: redraws when the template changes from the tray. Design system: buttons on a CSS grid by their `row`/`col`, the sidebar a column as wide as its token, touch styling from the tokens (border, radius, type, pressed and toggled colours), `Quit` with fixed colours, and a page change that lasts `motion.page-transition` (the leaving and the entering page move at once); a swipe refused at the first or last page springs back firmly, without going further than where it was released; the theme arrives as CSS custom properties set on `.panel`. Tests: 38 Vitest tests in jsdom, 26 stories in Storybook 10.6.8, run as tests in headless Chromium with axe inside `pnpm --dir ui test` (every component has its stories; `pnpm --dir ui storybook` to browse them) and 21 Playwright e2e, all passing with the network blocked. On Windows, `scripts/windows/` drives the panel with real mouse input to repeat the design test and measure the motion |
+| React frontend (`ui/`) | Phase 2: swipe between pages (Motion), sidebar on either side with lock, switch side and quit, Zustand store. Phase 3: redraws when the template changes from the tray. Design system: buttons on a CSS grid by their `row`/`col`, the sidebar a column as wide as its token, touch styling from the tokens (border, radius, type, pressed and toggled colours), `Quit` with fixed colours, and a page change that lasts `motion.page-transition` (the leaving and the entering page move at once); a swipe refused at the first or last page springs back firmly, without going further than where it was released; the theme arrives as CSS custom properties set on `.panel`. Tests: 49 Vitest unit tests (jsdom for the interface, Node for the release scripts and the docs), 26 stories in Storybook 10.6.8, run as tests in headless Chromium with axe inside `pnpm --dir ui test` (every component has its stories; `pnpm --dir ui storybook` to browse them) and 21 Playwright e2e, all passing with the network blocked. On Windows, `scripts/windows/` drives the panel with real mouse input to repeat the design test and measure the motion |
+| **Packaging and licence** (phase 4, in progress on `feat/mvp-release`) | Version `0.4.0`. `pnpm --dir ui release` builds the interface and an NSIS installer (`setup.exe`, unsigned, installed for the current user without administrator rights); the installer shows `LICENSE` on its licence page and leaves `LICENSE` and `THIRD-PARTY-NOTICES.md` next to the `.exe`. Licence: PolyForm Noncommercial 1.0.0. `THIRD-PARTY-NOTICES.md` is generated by `scripts/third-party-notices.sh` (cargo-about plus the production JavaScript packages) and checked with `--check` before a release. The README is written for whoever installs Plinth. The installer is built and tested on Windows next, then the `v0.4.0` release and the public repository |
 
 `main` holds all the work so far (fast-forwarded on 2026-11-24); each new piece of work starts on a short branch from `main`.
 
@@ -184,7 +185,10 @@ The phases, in order (see [`roadmap.md`](roadmap.md#phases)):
    bindings comes later, by editing a file in the templates folder.
    Design system (tokens, template themes, touch layout): **done**, on `main`, PASS on Windows
    with the mouse (2026-11-25); touch with a finger and real WoW are still to test.
-4. **Next:** packaging, docs, license, public repo — end of MVP.
+4. **In progress:** packaging, docs, license, public repo — end of MVP. The installer, the
+   licence, the third-party notices and the README are done on `feat/mvp-release`; still to do:
+   build and test the installer on Windows, publish the `v0.4.0` release and make the repository
+   public.
 5. Star Citizen as second game: export real keybinds and feed `keybinds_sc`, live data.
 6. Linux: uinput + Hyprland, reusing the validated work.
 

@@ -5,8 +5,9 @@ Plinth follows a **hexagonal (ports & adapters)** architecture. The goal: the pr
 external detail — not the UI framework, not the operating system, not the specific game, not
 the template format.
 
-> **Status:** the core (`domain` + `application` + `infra`) is implemented and tested. The
-> `plinth-tauri` layer (composition root + React UI) is a later phase and does not exist yet.
+> **Status:** the core (`domain` + `application` + `infra`) and the `plinth-tauri` layer
+> (composition root + React UI) are implemented and tested; the panel ships as a Windows
+> installer.
 
 ## Guiding principle
 
@@ -14,7 +15,7 @@ the template format.
 plinth-domain        ← (nothing)              pure: product language, game-agnostic
 plinth-application   → domain                 use cases + port definitions (traits)
 plinth-infra         → application, domain    adapters: uinput, SC keybinds, templates, config…
-plinth-tauri (bin)   → infra, application…    composition root + Tauri commands (later phase)
+plinth-tauri (bin)   → infra, application…    composition root + Tauri commands
 ```
 
 Dependencies only point **inward**. The domain knows no one; adapters know the core, never the
@@ -77,10 +78,17 @@ guarantees that an app button **never** injects keys and a game button **never**
   `ThemeCatalog`; `theme_scalars` parses a template's theme values, one strict format per kind.
 - `config_fs`, `clock`, `window_placement` (no-op on Linux).
 
-### `plinth-tauri` (binary, later phase)
+### `plinth-tauri` (binary)
 Composition root: wires the concrete adapters into the use cases and exposes thin
 `#[tauri::command]` handlers (deserialize → use case → serialize). The React UI lives beyond the
 boundary and **only sends intent, never keys**.
+- `window` — the borderless, always-on-top panel window that is never activated
+  (`WS_EX_NOACTIVATE` on Windows).
+- `commands` — `render_state`, `press` and `navigate`, the only calls the UI can make.
+- `templates` + `tray` — seed `%APPDATA%\plinth\templates` once, pick the startup template and
+  switch templates from the tray's `Templates` submenu.
+- Packaged as an NSIS installer (`pnpm --dir ui release`), with `LICENSE` and
+  `THIRD-PARTY-NOTICES.md` next to the executable.
 
 ## Three action categories
 
