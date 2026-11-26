@@ -77,3 +77,20 @@ fn the_build_compiles_the_ui_first() {
         json!("pnpm --dir ../ui build")
     );
 }
+
+#[test]
+fn the_installer_ships_the_licence_and_the_notices() {
+    assert_eq!(
+        tauri_conf()["bundle"]["resources"],
+        json!({
+            "../../LICENSE": "LICENSE",
+            "../../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md"
+        }),
+        "a map, not a list, so both files land next to the executable"
+    );
+    assert!(repo_file("LICENSE").is_some(), "LICENSE exists");
+    assert!(
+        repo_file("THIRD-PARTY-NOTICES.md").is_some(),
+        "THIRD-PARTY-NOTICES.md exists"
+    );
+}

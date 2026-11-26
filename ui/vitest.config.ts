@@ -15,7 +15,7 @@ export default mergeConfig(
           extends: true,
           test: {
             name: "unit",
-            include: ["src/**/*.test.{ts,tsx}"],
+            include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"],
             environment: "jsdom",
             globals: false,
             setupFiles: ["./src/test-setup.ts"],

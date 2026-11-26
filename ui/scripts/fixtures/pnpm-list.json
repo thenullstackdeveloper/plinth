@@ -1,0 +1,37 @@
+[
+  {
+    "name": "plinth-ui",
+    "version": "0.4.0",
+    "path": "ui",
+    "private": true,
+    "dependencies": {
+      "react-dom": {
+        "from": "react-dom",
+        "version": "19.3.1",
+        "path": "node_modules/.pnpm/react-dom@19.3.1/node_modules/react-dom",
+        "dependencies": {
+          "react": {
+            "from": "react",
+            "version": "19.3.1",
+            "path": "node_modules/.pnpm/react@19.3.1/node_modules/react"
+          },
+          "scheduler": {
+            "from": "scheduler",
+            "version": "0.28.0",
+            "path": "node_modules/.pnpm/scheduler@0.28.0/node_modules/scheduler"
+          }
+        }
+      },
+      "react": {
+        "from": "react",
+        "version": "19.3.1",
+        "path": "node_modules/.pnpm/react@19.3.1/node_modules/react"
+      },
+      "@tauri-apps/api": {
+        "from": "@tauri-apps/api",
+        "version": "2.12.5",
+        "path": "node_modules/.pnpm/@tauri-apps+api@2.12.5/node_modules/@tauri-apps/api"
+      }
+    }
+  }
+]
