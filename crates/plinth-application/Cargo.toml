@@ -3,6 +3,7 @@ name = "plinth-application"
 edition.workspace = true
 version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [features]
 # Activa los fakes reutilizables (FakeInputSender, FakeClock, …) para que tanto

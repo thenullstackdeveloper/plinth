@@ -1,7 +1,8 @@
 {
   "name": "plinth-ui",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.4.0",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "packageManager": "pnpm@10.28.0",
   "scripts": {
@@ -11,7 +12,8 @@
     "e2e": "playwright test",
     "storybook": "storybook dev -p 6006 --no-open --no-version-updates",
     "build-storybook": "storybook build",
-    "test-storybook": "vitest run --project=storybook"
+    "test-storybook": "vitest run --project=storybook",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.5",

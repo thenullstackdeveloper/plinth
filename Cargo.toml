@@ -9,10 +9,10 @@ members = [
 
 [workspace.package]
 edition = "2021"
-version = "0.0.0"
+version = "0.4.0"
 publish = false
-# License intentionally deferred (see docs/roadmap.md §8). For now: all rights
-# reserved. Do not publish on crates.io.
+license = "PolyForm-Noncommercial-1.0.0"
+# See LICENSE.
 
 [workspace.dependencies]
 plinth-domain = { path = "crates/plinth-domain" }

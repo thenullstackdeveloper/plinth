@@ -2679,7 +2679,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "plinth-application"
-version = "0.0.0"
+version = "0.4.0"
 dependencies = [
  "plinth-domain",
  "thiserror 2.0.18",
@@ -2687,14 +2687,14 @@ dependencies = [
 
 [[package]]
 name = "plinth-domain"
-version = "0.0.0"
+version = "0.4.0"
 dependencies = [
  "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "plinth-infra"
-version = "0.0.0"
+version = "0.4.0"
 dependencies = [
  "dirs 6.0.0",
  "evdev",
@@ -2711,7 +2711,7 @@ dependencies = [
 
 [[package]]
 name = "plinth-tauri"
-version = "0.0.0"
+version = "0.4.0"
 dependencies = [
  "plinth-application",
  "plinth-domain",

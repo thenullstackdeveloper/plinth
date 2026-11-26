@@ -11,6 +11,8 @@ use plinth_infra::template_dir::TemplateDir;
 use tauri::Manager;
 
 pub mod commands;
+#[cfg(test)]
+mod packaging;
 pub mod panel;
 pub mod templates;
 pub mod tray;
