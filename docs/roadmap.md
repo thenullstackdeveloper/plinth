@@ -33,7 +33,7 @@ Differentiators versus the competition (GameGlass, Touch Portal, Macro Deck…):
 
 | Topic | Decision |
 |---|---|
-| **Model** | Personal project + portfolio piece. Free for the community. Not a paid product. |
+| **Model** | Personal project + portfolio piece. The app is free for non-commercial use and is not sold. Later, once it works well, the author may sell **their own templates** (from a store of the author's own or an existing marketplace, linked from the README) and take donations (a "buy me a coffee" style button in the repo). Anyone can write their own templates. |
 | **MVP platform** | **Windows.** Development happens on a Mac; testing on a Windows machine. Linux is the last phase, after the MVP release. |
 | **MVP game** | **World of Warcraft** (a game the author plays; with literal keys and macros it is useful without parsing its keybinds). |
 | **Second game** | **Star Citizen** (a passionate community, tons of keybinds, official live data). Its keybind adapter already exists. |
@@ -198,7 +198,7 @@ What each phase proves:
 - **1**: A real Tauri window behaves like the spike: clicking its button keeps WoW focused and the key reaches the game through `execute_action`.
 - **2**: Pages change by swipe with animation, the sidebar switches sides and is remembered, and with the lock engaged a swipe does not change page.
 - **3**: A template can bind a button to a literal key or key sequence, and the author plays WoW with 1–2 real templates, choosing the game by hand.
-- **4**: Someone else can install Plinth on Windows from a published package, the license is decided and in the repo, and the repository is public as the v0 template store.
+- **4**: Someone else can install Plinth on Windows from a published package, the license is decided and in the repo, and the repository is public. It does not take community templates yet (see [Open decisions](#open-decisions)).
 - **5**: `keybinds_sc` resolves actions from a real exported Star Citizen layout, a real Star Citizen template is in use, and at least one live value from an official source is shown on the panel without ever firing an action.
 - **6**: The panel runs on Linux delivering keys through `input_uinput`, and the focus test passes on Hyprland or with the layer-shell fallback.
 
@@ -225,19 +225,44 @@ What each phase proves:
 
 ## Open decisions
 
-- **License → DEFERRED, OPEN TO DEBATE.** Postponed on purpose; while the repo is private (and
-  even public with no license), *all rights reserved* applies, so the work is already protected
-  by default. The owner's stated intent: *"free for the community, but no one profits from my
-  work."* That reopens the debate between two paths:
-  - **Source-available non-commercial** (e.g. PolyForm Noncommercial): literally reflects that
-    wish (free non-commercial use, no third party profiting). **Con:** it is not "open source"
-    per the OSI, may deter contributors, and slightly reduces reach as a portfolio piece.
-  - **Permissive** (Apache-2.0 / MIT): maximum reading and reuse of the code → a better portfolio
-    signal. **Con:** it explicitly allows commercial use by third parties, which is exactly what
-    the owner wants to avoid.
-  - *Point to settle in the debate:* how much "no one profits" weighs against portfolio reach.
-    Decide **before making the repo public** (phase 4; reverting is hard once the community uses
-    the code under a permissive license).
+- **License → DECIDED (2026-11-26): source-available, non-commercial (PolyForm Noncommercial).**
+  - **What it means.** The repository goes public in phase 4. Anyone can read Plinth, use it for
+    free and learn from it, but no third party may sell it or make money with it. That is the
+    owner's intent: *"free for the community, but no one profits from my work"*. A public repo
+    still gives the portfolio its value (the code, its tests and its architecture can be read);
+    what is given up is the OSI "open source" label and some contributors, a small cost next to
+    that.
+  - **Why non-commercial first.** Loosening a license later is easy while the author holds all
+    the copyright; tightening it is not, since code already published under a permissive license
+    stays permissive for whoever copied it.
+  - **Code contributions closed for now.** The author shapes the project alone until it has a
+    solid base; the README says so. Staying the sole author keeps both options open: relicensing,
+    and selling the author's own templates.
+  - **When contributions open**, contributors sign a CLA, so the author can still relicense; a
+    contribution without one belongs to its author and would block that.
+  - **To check in phase 4, from the primary source:**
+    - the current version of PolyForm Noncommercial and its exact text;
+    - that it stops third parties from selling templates or services built on Plinth;
+    - how templates written by others are licensed, since a template is its author's own YAML
+      file, not Plinth's code.
+- **Community templates → DECIDED (2026-11-26): accepted, but only once the format is frozen.**
+  - **When.** The v0 store (this repository taking templates through Pull Requests) opens after
+    the MVP works and the template format is frozen as schema version `"1"`.
+  - **Why.** The aim is that no template written by someone else breaks because the author later
+    changes the format.
+  - **What has to be settled before the freeze.** Everything a template can declare:
+    - pages and layout;
+    - styles (the `theme` tokens);
+    - images;
+    - animations;
+    - and anything else the template author would write in the YAML.
+  - **After the freeze** (proposed):
+    - within schema version `"1"`, changes are only additive (a new optional field, a new
+      token);
+    - a change that would break an existing template needs a new schema version, and the loader
+      keeps reading the previous one.
+  - **Still to settle:** where the freeze goes among the phases. It comes after phase 4 and
+    before the store opens; it is settled when it is planned.
 - **Domain and trademark.** Verify availability of `plinth` (`.gg` / `.app` / `.io`) and
   trademark registration (USPTO / EUIPO) for software. No apparent conflict with control
   software, but the check is pending.
