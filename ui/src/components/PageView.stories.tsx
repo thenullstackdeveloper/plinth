@@ -4,7 +4,7 @@ import { type ComponentProps, useState } from "react";
 import { expect, mocked, waitFor } from "storybook/test";
 
 import { usePanelStore } from "../store/panelStore";
-import { component, inRow, viewWith } from "../testing/views";
+import { component, inRow, viewWith, withImage } from "../testing/views";
 import { PageView } from "./PageView";
 
 const worldMap = component("world_map", "World map");
@@ -175,5 +175,43 @@ export const PageChangeLastsTransitionMs: Story = {
     await waitFor(() => expect(canvasElement.getAnimations({ subtree: true }).length).toBeGreaterThan(0));
     const durations = canvasElement.getAnimations({ subtree: true }).map((a) => a.effect?.getTiming().duration);
     await expect(durations).toEqual(durations.map(() => 400));
+  },
+};
+
+/** A 4×4 PNG drawn in the story's own browser, as the backend would send it. */
+function drawnPng(): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 4;
+  canvas.height = 4;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("no 2d context");
+  context.fillStyle = "#c0392b";
+  context.fillRect(0, 0, 4, 4);
+  return canvas.toDataURL("image/png");
+}
+
+export const ButtonImage: Story = {
+  args: { components: [withImage(worldMap, "t1i0")] },
+  beforeEach: () => {
+    usePanelStore.setState({ images: { t1i0: drawnPng() } });
+  },
+  play: async ({ canvas, canvasElement }) => {
+    // The image does not take the button's name: it keeps its label.
+    const button = canvas.getByRole("button", { name: "World map" });
+    const image = button.querySelector<HTMLImageElement>("img");
+    if (!image) throw new Error("no img in the button");
+    await expect(image.alt).toBe("");
+    await waitFor(() => expect(image.naturalWidth).toBe(4));
+    await expect(getComputedStyle(image).objectFit).toBe("cover");
+    // It fills the face of the button, inside its 1px border.
+    const face = button.getBoundingClientRect();
+    const box = image.getBoundingClientRect();
+    await expect(box.left - face.left).toBeCloseTo(1, 1);
+    await expect(face.right - box.right).toBeCloseTo(1, 1);
+    await expect(box.top - face.top).toBeCloseTo(1, 1);
+    await expect(face.bottom - box.bottom).toBeCloseTo(1, 1);
+    // An id the table does not have paints nothing.
+    usePanelStore.setState({ images: {} });
+    await waitFor(() => expect(canvasElement.querySelector("img")).toBeNull());
   },
 };

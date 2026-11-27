@@ -6,6 +6,7 @@
 
 use crate::action::{Action, AppAction};
 use crate::error::DomainError;
+use crate::image::ImageAsset;
 use crate::key::{ComponentPosition, SchemaVersion, SidebarSide, VisualProps};
 use crate::theme::{GridSize, PanelSize, Theme, LAYOUT_TOKENS};
 
@@ -83,6 +84,9 @@ pub struct Template {
     sidebar: Sidebar,
     /// The resolved theme. Empty until `with_theme` gives it one.
     theme: Theme,
+    /// The images the components point to, by `ImageRef`. None until
+    /// `with_images` gives them.
+    images: Vec<ImageAsset>,
 }
 
 impl Template {
@@ -155,6 +159,7 @@ impl Template {
             pages,
             sidebar,
             theme: Theme::default(),
+            images: Vec::new(),
         })
     }
 
@@ -166,6 +171,29 @@ impl Template {
 
     pub fn theme(&self) -> &Theme {
         &self.theme
+    }
+
+    /// The same template with the images its components point to. A
+    /// component whose `ImageRef` has no image in `images` is rejected.
+    pub fn with_images(mut self, images: Vec<ImageAsset>) -> Result<Self, DomainError> {
+        let refs = self
+            .pages
+            .iter()
+            .flat_map(|p| p.components())
+            .chain(self.sidebar.components.iter())
+            .filter_map(|c| c.visual.image);
+        for image in refs {
+            if image.0 >= images.len() {
+                return Err(DomainError::UnknownImage(image.0));
+            }
+        }
+        self.images = images;
+        Ok(self)
+    }
+
+    /// The template's images, in the order `ImageRef` counts them.
+    pub fn images(&self) -> &[ImageAsset] {
+        &self.images
     }
 
     /// Whether every page's grid and the sidebar fit `panel` with the theme's

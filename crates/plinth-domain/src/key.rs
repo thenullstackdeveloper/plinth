@@ -10,6 +10,7 @@
 use std::time::Duration;
 
 use crate::error::DomainError;
+use crate::image::ImageRef;
 
 /// A physical scancode (e.g. the "A" key == 30). An opaque newtype: the domain
 /// does not interpret the value, it only carries it to the input layer.
@@ -190,10 +191,12 @@ pub struct ComponentPosition {
     pub col: u16,
 }
 
-/// Purely visual properties of a component (label, icon…). The domain does not
-/// interpret them; it carries them to the UI via the DTO.
+/// Purely visual properties of a component (label, icon, image…). The domain
+/// does not interpret them; it carries them to the UI via the DTO.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VisualProps {
     pub label: Option<String>,
     pub icon: Option<String>,
+    /// An image that fills the face of the button.
+    pub image: Option<ImageRef>,
 }

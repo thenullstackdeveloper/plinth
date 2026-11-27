@@ -10,7 +10,12 @@ export type ComponentDto = {
   actionKind: "game" | "app" | "keys";
   /** The app action the component triggers (`"toggle_lock"`, …), or null for game and key buttons. */
   appAction: string | null;
+  /** The image that fills the button: a key of `fetchTemplateImages()`. Absent when it has none. */
+  imageId?: string;
 };
+
+/** Image id (`"t1i0"`) → `data:` URI, for the template on screen. */
+export type TemplateImages = Record<string, string>;
 
 /** CSS custom property → value (`"--plinth-color-button-background"` → `"#262a3b"`), resolved by Rust. */
 export type ThemeVars = Record<string, string>;
@@ -37,6 +42,11 @@ export type NavDirection = "next" | "prev";
 
 export function renderState(): Promise<RenderView> {
   return invoke<RenderView>("render_state");
+}
+
+/** The images of the template on screen, once per template: the view only carries their ids. */
+export function fetchTemplateImages(): Promise<TemplateImages> {
+  return invoke<TemplateImages>("template_images");
 }
 
 export function press(componentId: string): Promise<RenderView> {

@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import type { ComponentDto, PageDto, ThemeVars } from "../src/adapters/panelApi";
+import type { ComponentDto, PageDto, TemplateImages, ThemeVars } from "../src/adapters/panelApi";
 import defaultTheme from "../src/testing/fixtures/default-theme.json" with { type: "json" };
 
 /** A game button in the cell `row`, `col`. */
@@ -42,7 +42,22 @@ export type FakeOptions = {
   theme?: ThemeVars;
   /** A component whose press the backend refuses with this error text. */
   failPress?: { componentId: string; error: string };
+  /** What `template_images` answers: image id → `data:` URI. None when absent. */
+  images?: TemplateImages;
 };
+
+/** What the backend holds of its template, and changes on `emitPanelChanged`. */
+type TemplateData = { pages: PageDto[]; sidebar: ComponentDto[]; theme: ThemeVars; images: TemplateImages };
+
+/** `options` as the page gets them, with the defaults filled in and the grids computed. */
+function templateData(options: FakeOptions): TemplateData {
+  return {
+    pages: (options.pages ?? DEFAULT_PAGES).map(withGrid),
+    sidebar: options.sidebar ?? SIDEBAR,
+    theme: options.theme ?? defaultTheme,
+    images: options.images ?? {},
+  };
+}
 
 /** What the fake recorded, read back with `calls(page)`. */
 export type FakeCall = { cmd: string; args: unknown };
@@ -54,30 +69,35 @@ export type FakeCall = { cmd: string; args: unknown };
  * default), a lock and a sidebar, like `Panel` in crates/plinth-tauri/src/panel.rs: a refused swipe
  * or press answers with the unchanged view. The pages, the sidebar and the
  * theme are built here, in Node, and handed to the page as an argument.
+ * `template_images` answers with `options.images`. The `panel-changed`
+ * listeners are kept, so `emitPanelChanged` can change the template and
+ * fire the event as the tray does.
  */
 export async function installFakeBackend(page: Page, options: FakeOptions = {}): Promise<void> {
-  type Injected = Omit<FakeOptions, "pages" | "sidebar"> & { pages: PageDto[]; sidebar: ComponentDto[] };
+  type Injected = Pick<FakeOptions, "sidebarSide" | "failPress"> & { data: TemplateData };
   await page.addInitScript((opts: Injected) => {
-    const { pages, sidebar } = opts;
+    let data = opts.data;
     const state = { currentPage: 0, locked: false, sidebarSide: opts.sidebarSide ?? "right" };
     const calls: { cmd: string; args: unknown }[] = [];
 
     const view = () => ({
-      pages,
+      pages: data.pages,
       currentPage: state.currentPage,
       locked: state.locked,
-      sidebar,
+      sidebar: data.sidebar,
       sidebarSide: state.sidebarSide,
-      theme: opts.theme,
+      theme: data.theme,
       // `motion.page-transition` of the default theme.
       pageTransitionMs: 200,
     });
 
-    const callbacks = new Map<number, unknown>();
+    const callbacks = new Map<number, (payload: unknown) => void>();
     let nextId = 1;
+    /** Callback ids of the `panel-changed` listeners still registered. */
+    const listeners = new Set<number>();
 
     const internals = {
-      transformCallback(callback: unknown) {
+      transformCallback(callback: (payload: unknown) => void) {
         const id = nextId++;
         callbacks.set(id, callback);
         return id;
@@ -90,10 +110,12 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
         switch (cmd) {
           case "render_state":
             return view();
+          case "template_images":
+            return data.images;
           case "navigate": {
             const step = args.direction === "next" ? 1 : -1;
             const target = state.currentPage + step;
-            if (!state.locked && target >= 0 && target < pages.length) state.currentPage = target;
+            if (!state.locked && target >= 0 && target < data.pages.length) state.currentPage = target;
             return view();
           }
           case "press": {
@@ -106,9 +128,14 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
             }
             return view();
           }
-          case "plugin:event|listen":
-            return 1;
+          // The event id is the handler's callback id, as `mockIPC` does.
+          case "plugin:event|listen": {
+            const handler = (args as { handler: number }).handler;
+            listeners.add(handler);
+            return handler;
+          }
           case "plugin:event|unlisten":
+            listeners.delete((args as { eventId: number }).eventId);
             return null;
           default:
             throw new Error(`unexpected command ${cmd}`);
@@ -118,13 +145,37 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
 
     const w = window as unknown as Record<string, unknown>;
     w.__TAURI_INTERNALS__ = internals;
+    // `unlisten` in @tauri-apps/api/event drops the callback here first.
+    w.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+      unregisterListener(_event: string, id: number) {
+        callbacks.delete(id);
+      },
+    };
     w.__plinthCalls = calls;
+    /** A new template on the backend, page 0 and unlocked, announced like the tray does. */
+    w.__plinthChangeTemplate = (next: TemplateData) => {
+      data = next;
+      state.currentPage = 0;
+      state.locked = false;
+      for (const id of listeners) callbacks.get(id)?.({ event: "panel-changed", id, payload: null });
+    };
   }, {
-    ...options,
-    pages: (options.pages ?? DEFAULT_PAGES).map(withGrid),
-    sidebar: options.sidebar ?? SIDEBAR,
-    theme: options.theme ?? defaultTheme,
+    sidebarSide: options.sidebarSide,
+    failPress: options.failPress,
+    data: templateData(options),
   } satisfies Injected);
+}
+
+/**
+ * Switches the fake backend to the template of `next` (its pages, sidebar,
+ * theme and images; the defaults for what it leaves out) and fires
+ * `panel-changed`, as picking a template in the tray does.
+ */
+export async function emitPanelChanged(page: Page, next: FakeOptions = {}): Promise<void> {
+  await page.evaluate(
+    (data) => (window as unknown as { __plinthChangeTemplate: (d: TemplateData) => void }).__plinthChangeTemplate(data),
+    templateData(next),
+  );
 }
 
 /** Everything the UI asked the fake backend, in order. */

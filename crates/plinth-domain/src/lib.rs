@@ -7,6 +7,7 @@
 pub mod action;
 pub mod catalog;
 pub mod error;
+pub mod image;
 pub mod key;
 pub mod runtime;
 pub mod template;
@@ -15,6 +16,7 @@ pub mod theme;
 pub use action::{Action, ActionId, AppAction, GameAction};
 pub use catalog::ActionCatalog;
 pub use error::DomainError;
+pub use image::{ImageAsset, ImageKind, ImageLimits, ImagePath, ImageRef, ImageUse};
 pub use key::{
     ComponentPosition, KeyBinding, KeyChord, KeyMacro, KeySequence, KeyStep, KeyStepKind, ScanCode,
     SchemaVersion, SidebarSide, VisualProps,
@@ -265,6 +267,38 @@ mod tests {
         assert!(template.find_component(&ComponentId::new("btn")).is_some());
         assert!(template.find_component(&ComponentId::new("lock")).is_some());
         assert!(template.find_component(&ComponentId::new("nope")).is_none());
+    }
+
+    fn image(path: &str) -> ImageAsset {
+        ImageAsset {
+            path: ImagePath::parse(path).unwrap(),
+            kind: ImageKind::Png,
+            width: 1,
+            height: 1,
+            bytes: vec![1u8, 2, 3].into(),
+        }
+    }
+
+    #[test]
+    fn with_images_rejects_a_reference_to_no_image() {
+        let mut button = component("btn", Action::App(AppAction::NextPage));
+        button.visual.image = Some(ImageRef(1));
+        let page = Page::new(vec![button]).unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![],
+        };
+        let template = Template::new(meta(), vec![page], sidebar).unwrap();
+
+        assert_eq!(
+            template.clone().with_images(vec![image("a.png")]),
+            Err(DomainError::UnknownImage(1))
+        );
+        let with = template
+            .with_images(vec![image("a.png"), image("b.png")])
+            .unwrap();
+        let paths: Vec<&str> = with.images().iter().map(|i| i.path.as_str()).collect();
+        assert_eq!(paths, vec!["a.png", "b.png"]);
     }
 
     fn one_page_template() -> Template {

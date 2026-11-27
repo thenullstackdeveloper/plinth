@@ -10,20 +10,27 @@
 //! The optional `theme` follows the same path: the schema checks its shape,
 //! each value is parsed to the kind its token has in the `ThemeCatalog`, and
 //! the catalog decides what a template may change.
+//!
+//! An `image` is read from the template's folder with the safe read of
+//! `TemplateAssets`, checked by its header (`image_check`) against its
+//! extension and the limits of its use, and kept once per path.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use plinth_application::{TemplateError, TemplateSource};
 use plinth_domain::{
-    Action, ActionCatalog, Component, ComponentId, ComponentPosition, DomainError, KeyMacro, Page,
-    SchemaVersion, Sidebar, SidebarSide, Template, TemplateMetadata, Theme, ThemeCatalog,
-    TokenKind, TokenValue, VisualProps,
+    Action, ActionCatalog, Component, ComponentId, ComponentPosition, DomainError, ImageAsset,
+    ImagePath, ImageRef, ImageUse, KeyMacro, Page, SchemaVersion, Sidebar, SidebarSide, Template,
+    TemplateMetadata, Theme, ThemeCatalog, TokenKind, TokenValue, VisualProps,
 };
 use serde_json::Value;
 
 use crate::design_tokens::embedded_catalog;
+use crate::image_check::{inspect, ImageError};
 use crate::key_names::parse_chord;
 use crate::strict_yaml;
+use crate::template_dir::{TemplateAssets, TemplatePackage};
 use crate::theme_scalars::{
     parse_font_weight, parse_hex_color, parse_hundredths, parse_ms, parse_px,
 };
@@ -52,10 +59,16 @@ impl FsTemplateSource {
     }
 
     /// Parses + validates + maps a YAML string (useful for tests and in-memory
-    /// sources).
+    /// sources). It is a single-file template, so it cannot reference images.
     pub fn load_str(&self, yaml: &str) -> Result<Template, TemplateError> {
+        self.load_package(&TemplatePackage::single_file(yaml))
+    }
+
+    /// Parses + validates + maps a template and reads the images it
+    /// references from its folder.
+    pub fn load_package(&self, package: &TemplatePackage) -> Result<Template, TemplateError> {
         // A key written twice is refused, wherever it is.
-        let doc = strict_yaml::from_str(yaml)?;
+        let doc = strict_yaml::from_str(&package.yaml)?;
 
         // Before the shape: an unquoted `#` makes the value a comment, so the
         // author gets a hint instead of a schema error about `null`.
@@ -71,10 +84,15 @@ impl FsTemplateSource {
         }
 
         // Checks 2 and 3: catalog + invariants, via the mapping.
-        self.map_template(&doc)
+        let mut images = ImageLoader::new(&package.assets);
+        self.map_template(&doc, &mut images)
     }
 
-    fn map_template(&self, doc: &Value) -> Result<Template, TemplateError> {
+    fn map_template(
+        &self,
+        doc: &Value,
+        images: &mut ImageLoader<'_>,
+    ) -> Result<Template, TemplateError> {
         let schema_version = str_field(doc, "schema_version")?;
         let meta_node = doc
             .get("metadata")
@@ -96,7 +114,7 @@ impl FsTemplateSource {
                 .get("components")
                 .and_then(Value::as_array)
                 .ok_or_else(|| TemplateError("a page has no `components`".into()))?;
-            let components = self.map_components(comps)?;
+            let components = self.map_components(comps, images)?;
             pages.push(Page::new(components).map_err(domain_err)?);
         }
 
@@ -111,7 +129,7 @@ impl FsTemplateSource {
         let sidebar_comps = sidebar_node
             .get("components")
             .and_then(Value::as_array)
-            .map(|c| self.map_components(c))
+            .map(|c| self.map_components(c, images))
             .transpose()?
             .unwrap_or_default();
         let sidebar = Sidebar {
@@ -121,7 +139,7 @@ impl FsTemplateSource {
 
         let theme = self.map_theme(doc.get("theme"))?;
         Template::new(metadata, pages, sidebar)
-            .map(|template| template.with_theme(theme))
+            .and_then(|template| template.with_theme(theme).with_images(images.finish()))
             .map_err(domain_err)
     }
 
@@ -158,11 +176,22 @@ impl FsTemplateSource {
         self.theme_catalog.resolve(overrides).map_err(theme_err)
     }
 
-    fn map_components(&self, nodes: &[Value]) -> Result<Vec<Component>, TemplateError> {
-        nodes.iter().map(|n| self.map_component(n)).collect()
+    fn map_components(
+        &self,
+        nodes: &[Value],
+        images: &mut ImageLoader<'_>,
+    ) -> Result<Vec<Component>, TemplateError> {
+        nodes
+            .iter()
+            .map(|n| self.map_component(n, images))
+            .collect()
     }
 
-    fn map_component(&self, node: &Value) -> Result<Component, TemplateError> {
+    fn map_component(
+        &self,
+        node: &Value,
+        images: &mut ImageLoader<'_>,
+    ) -> Result<Component, TemplateError> {
         let id = ComponentId::new(str_field(node, "id")?);
         let pos = node
             .get("position")
@@ -171,9 +200,13 @@ impl FsTemplateSource {
             row: u16_field(pos, "row")?,
             col: u16_field(pos, "col")?,
         };
+        let image = opt_str(node, "image")
+            .map(|raw| images.load(&raw, ImageUse::ButtonImage))
+            .transpose()?;
         let visual = VisualProps {
             label: opt_str(node, "label"),
             icon: opt_str(node, "icon"),
+            image,
         };
         let action = match node.get("keys") {
             Some(keys) => Action::Keys(map_keys(keys)?),
@@ -198,6 +231,65 @@ impl TemplateSource for FsTemplateSource {
         let yaml = std::fs::read_to_string(Path::new(reference))
             .map_err(|e| TemplateError(format!("could not read `{reference}`: {e}")))?;
         self.load_str(&yaml)
+    }
+}
+
+/// The images of one template, read as its components reference them: each
+/// path once, in order of first appearance, so its index is its `ImageRef`.
+struct ImageLoader<'a> {
+    assets: &'a TemplateAssets,
+    images: Vec<ImageAsset>,
+    by_path: HashMap<ImagePath, usize>,
+}
+
+impl<'a> ImageLoader<'a> {
+    fn new(assets: &'a TemplateAssets) -> Self {
+        Self {
+            assets,
+            images: Vec::new(),
+            by_path: HashMap::new(),
+        }
+    }
+
+    /// The image at `raw` for `use_`: read, checked against its extension
+    /// and the limits of `use_`, or the one already read for that path.
+    fn load(&mut self, raw: &str, use_: ImageUse) -> Result<ImageRef, TemplateError> {
+        let path = ImagePath::parse(raw).map_err(domain_err)?;
+        if let Some(&index) = self.by_path.get(&path) {
+            self.images[index].check(use_).map_err(domain_err)?;
+            return Ok(ImageRef(index));
+        }
+        let bytes = self.assets.read(&path, use_.limits().max_bytes)?;
+        let shown = path.as_str();
+        let info = inspect(&bytes).map_err(|e| {
+            let reason = match e {
+                ImageError::NotAnImage => "not an image",
+                ImageError::Malformed(reason) => reason,
+            };
+            TemplateError(format!("`{shown}` is not supported: {reason}"))
+        })?;
+        if info.kind != path.kind() {
+            return Err(TemplateError(format!(
+                "`{shown}` is not a {} file",
+                path.kind().name()
+            )));
+        }
+        let asset = ImageAsset {
+            path: path.clone(),
+            kind: info.kind,
+            width: info.width,
+            height: info.height,
+            bytes: bytes.into(),
+        };
+        asset.check(use_).map_err(domain_err)?;
+        let index = self.images.len();
+        self.images.push(asset);
+        self.by_path.insert(path, index);
+        Ok(ImageRef(index))
+    }
+
+    fn finish(&mut self) -> Vec<ImageAsset> {
+        std::mem::take(&mut self.images)
     }
 }
 
@@ -727,6 +819,80 @@ sidebar: {{ default_side: right, components: [] }}
         assert_eq!(
             theme_rejection(&["font.line-height.label: 1000000"]),
             "invalid theme: theme token `font.line-height.label` expects a number with at most two decimals, like 1.2"
+        );
+    }
+
+    // --- Images from a template folder ---
+
+    use crate::image_check::test_images::png;
+    use std::path::PathBuf;
+
+    /// A template folder of its own under the temp dir with `files` (path
+    /// below it, bytes), unique to the test.
+    fn image_folder(test: &str, files: &[(&str, Vec<u8>)]) -> PathBuf {
+        let folder =
+            std::env::temp_dir().join(format!("plinth-template-fs-{}-{test}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        for (path, bytes) in files {
+            let file = folder.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, bytes).unwrap();
+        }
+        folder
+    }
+
+    fn folder_package(folder: &Path, yaml: String) -> TemplatePackage {
+        TemplatePackage {
+            yaml,
+            assets: TemplateAssets::Folder(folder.to_path_buf()),
+        }
+    }
+
+    #[test]
+    fn loads_a_folder_template_with_a_button_image() {
+        let bytes = png(3, 2);
+        let folder = image_folder("button-image", &[("img/fire.png", bytes.clone())]);
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let yaml = with_component("keys: \"m\"\n        image: \"img/fire.png\"");
+
+        let template = src.load_package(&folder_package(&folder, yaml)).unwrap();
+
+        let component = &template.pages()[0].components()[0];
+        assert_eq!(component.visual.image, Some(ImageRef(0)));
+        let [image] = template.images() else {
+            panic!("one image, got {:?}", template.images().len());
+        };
+        assert_eq!(image.path.as_str(), "img/fire.png");
+        assert_eq!(image.kind, plinth_domain::ImageKind::Png);
+        assert_eq!((image.width, image.height), (3, 2));
+        assert_eq!(&image.bytes[..], &bytes[..]);
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn a_png_named_webp_is_a_format_mismatch() {
+        let folder = image_folder("mismatch", &[("x.webp", png(3, 2))]);
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let yaml = with_component("keys: \"m\"\n        image: \"x.webp\"");
+
+        let err = src
+            .load_package(&folder_package(&folder, yaml))
+            .unwrap_err();
+
+        assert_eq!(err.0, "`x.webp` is not a webp file");
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn a_single_file_template_cannot_reference_images() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let yaml = with_component("keys: \"m\"\n        image: \"img/fire.png\"");
+
+        let err = src.load_str(&yaml).unwrap_err();
+
+        assert_eq!(
+            err.0,
+            "a single-file template cannot reference images; put it in a folder with template.yaml"
         );
     }
 }

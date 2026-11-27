@@ -55,6 +55,7 @@ mod tests {
             visual: VisualProps {
                 label: Some(id.to_string()),
                 icon: None,
+                image: None,
             },
             action,
         }
@@ -315,7 +316,7 @@ mod tests {
         )
         .unwrap();
 
-        let render = query_render_state(&template, &state);
+        let render = query_render_state(&template, &state, 1);
         assert_eq!(render.pages.len(), 2);
         assert_eq!(render.sidebar_side, SidebarSide::Left);
         let shield = render.pages[0]
@@ -539,7 +540,8 @@ mod tests {
 
     #[test]
     fn keys_render_as_keys_kind() {
-        let render = query_render_state(&keys_template(), &RuntimeState::new(SidebarSide::Right));
+        let render =
+            query_render_state(&keys_template(), &RuntimeState::new(SidebarSide::Right), 1);
         let map = render.pages[0]
             .components
             .iter()
@@ -575,7 +577,7 @@ mod tests {
             .unwrap();
         let template = template().with_theme(theme);
 
-        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right));
+        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right), 1);
 
         assert_eq!(
             render.theme,
@@ -599,7 +601,7 @@ mod tests {
         };
         let template = Template::new(meta(), vec![page], sidebar).unwrap();
 
-        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right));
+        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right), 1);
 
         let page = &render.pages[0];
         assert_eq!((page.rows, page.cols), (3, 4));
@@ -626,7 +628,7 @@ mod tests {
         };
         let template = Template::new(meta(), vec![page], sidebar).unwrap();
 
-        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right));
+        let render = query_render_state(&template, &RuntimeState::new(SidebarSide::Right), 1);
 
         let ids: Vec<&str> = render.sidebar.iter().map(|c| c.id.as_str()).collect();
         assert_eq!(ids, vec!["first", "lock", "switch", "quit"]);

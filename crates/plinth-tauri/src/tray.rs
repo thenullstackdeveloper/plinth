@@ -14,7 +14,8 @@ use crate::commands::{AppPanel, PANEL_CHANGED_EVENT};
 /// Id of the tray menu's quit item.
 pub const TRAY_QUIT_ID: &str = "quit";
 
-/// Prefix of a template item's id; the rest is the template's file name.
+/// Prefix of a template item's id; the rest is the template's name in the
+/// folder (`x.yaml` or `x/`).
 pub const TEMPLATE_ID_PREFIX: &str = "template:";
 
 /// One template in the `Templates` submenu.
@@ -110,11 +111,14 @@ fn choose_template<R: Runtime>(app: &AppHandle<R>, name: &str, items: &[CheckMen
         eprintln!("plinth: the panel state is poisoned");
         return;
     };
-    let switched = dir.read(name).map_err(|e| e.to_string()).and_then(|yaml| {
-        panel
-            .switch_template(name, &yaml)
-            .map_err(|e| e.to_string())
-    });
+    let switched = dir
+        .read(name)
+        .map_err(|e| e.to_string())
+        .and_then(|package| {
+            panel
+                .switch_template(name, &package)
+                .map_err(|e| e.to_string())
+        });
     match switched {
         Ok(()) => {
             if let Err(e) = app.emit(PANEL_CHANGED_EVENT, ()) {

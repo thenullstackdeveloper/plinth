@@ -10,6 +10,11 @@ export function component(
   return { id, row: at.row, col: at.col, label, actionKind: "game", appAction: null };
 }
 
+/** `component` with the image of id `imageId`, a key of the store's `images`. */
+export function withImage(component: ComponentDto, imageId: string): ComponentDto {
+  return { ...component, imageId };
+}
+
 /** An app component (sidebar button) for tests, in `row` of the sidebar. */
 export function appComponent(id: string, label: string, appAction: string, row = 0): ComponentDto {
   return { id, row, col: 0, label, actionKind: "app", appAction };

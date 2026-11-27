@@ -26,6 +26,9 @@ pub struct ComponentView {
     pub col: u16,
     pub label: Option<String>,
     pub icon: Option<String>,
+    /// The image that fills the button, as `t<generation>i<index>`: an id of
+    /// the template's images, never their bytes.
+    pub image_id: Option<String>,
     pub action_kind: ActionKind,
     /// Toggle state (if applicable). The UI uses it for highlighting.
     pub toggled: bool,

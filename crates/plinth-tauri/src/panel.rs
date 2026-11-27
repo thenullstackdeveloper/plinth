@@ -5,16 +5,20 @@
 
 use std::collections::BTreeMap;
 
+use plinth_application::usecases::image_id;
 use plinth_application::{
     execute_action, navigate, query_render_state, ActionKind, ActionOutcome, AppError, Clock,
     ComponentView, ConfigStore, GameKeybindProvider, InputSender, Prefs,
 };
 use plinth_domain::{
-    Action, AppAction, ComponentId, DomainError, NavDirection, PanelSize, RuntimeState,
+    Action, AppAction, ComponentId, DomainError, ImageRef, NavDirection, PanelSize, RuntimeState,
     SidebarSide, Template,
 };
+use plinth_infra::template_dir::TemplatePackage;
 use plinth_infra::template_fs::FsTemplateSource;
 use serde::{Deserialize, Serialize};
+
+use crate::data_uri;
 
 /// The phase 1 template: one page with the WoW world map button.
 pub const WOW_PHASE1_TEMPLATE: &str = include_str!("../templates/wow-phase1.yaml");
@@ -97,6 +101,10 @@ pub struct ComponentDto {
     /// The app action a component triggers (`"toggle_lock"`, …), or `None`
     /// for a game action. Lets the UI tell the lock button apart.
     pub app_action: Option<&'static str>,
+    /// The image that fills the button: a key of `template_images`, never
+    /// the image itself. Left out when the button has none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_id: Option<String>,
 }
 
 pub struct Panel<I, P, C, S>
@@ -113,6 +121,12 @@ where
     /// changes on a switch, so a fallback at startup never overwrites it.
     last_template: Option<String>,
     state: RuntimeState,
+    /// How many templates the panel has loaded, the first one included. It
+    /// is part of every image id, so an id never outlives its template.
+    generation: u64,
+    /// Image id → `data:` URI of the template on screen, encoded once when it
+    /// loads.
+    images: BTreeMap<String, String>,
     provider: P,
     input: I,
     clock: C,
@@ -127,7 +141,7 @@ where
     S: ConfigStore,
 {
     pub fn new(
-        template_yaml: &str,
+        package: &TemplatePackage,
         provider: P,
         input: I,
         clock: C,
@@ -136,7 +150,7 @@ where
         let source = FsTemplateSource::new(provider.catalog())
             .map_err(|e| PanelError::Template(e.to_string()))?;
         let template = source
-            .load_str(template_yaml)
+            .load_package(package)
             .map_err(|e| PanelError::Template(e.to_string()))?;
         template
             .check_fit(PANEL_SIZE)
@@ -149,11 +163,15 @@ where
             .unwrap_or(template.sidebar().default_side);
         let last_template = saved.and_then(|prefs| prefs.last_template);
         let state = RuntimeState::new(side);
+        let generation = 1;
+        let images = encode_images(&template, generation);
         Ok(Self {
             template,
             template_name: None,
             last_template,
             state,
+            generation,
+            images,
             provider,
             input,
             clock,
@@ -172,19 +190,25 @@ where
         self.template_name.as_deref()
     }
 
-    /// Replaces the template with `yaml`, chosen by the user as `name`. On
-    /// success the panel starts over on page 0, unlocked, on the same side,
-    /// and the choice is saved; a template that does not load or does not fit
-    /// the panel changes nothing.
-    pub fn switch_template(&mut self, name: &str, yaml: &str) -> Result<(), PanelError> {
+    /// Replaces the template with `package`, chosen by the user as `name`.
+    /// On success the panel starts over on page 0, unlocked, on the same
+    /// side, with new image ids, and the choice is saved; a template that
+    /// does not load or does not fit the panel changes nothing.
+    pub fn switch_template(
+        &mut self,
+        name: &str,
+        package: &TemplatePackage,
+    ) -> Result<(), PanelError> {
         let source = FsTemplateSource::new(self.provider.catalog())
             .map_err(|e| PanelError::Template(e.to_string()))?;
         let template = source
-            .load_str(yaml)
+            .load_package(package)
             .map_err(|e| PanelError::Template(format!("`{name}`: {e}")))?;
         template
             .check_fit(PANEL_SIZE)
             .map_err(|e| PanelError::Template(format!("`{name}`: {e}")))?;
+        self.generation += 1;
+        self.images = encode_images(&template, self.generation);
         self.template = template;
         self.state = RuntimeState::new(self.state.sidebar_side());
         self.template_name = Some(name.to_string());
@@ -231,8 +255,14 @@ where
         navigate(&mut self.state, &self.template, direction).map_err(map_app_error)
     }
 
+    /// Image id → `data:` URI of every image of the template on screen. The
+    /// UI asks for it once per template; `render` only carries the ids.
+    pub fn template_images(&self) -> BTreeMap<String, String> {
+        self.images.clone()
+    }
+
     pub fn render(&self) -> RenderView {
-        let state = query_render_state(&self.template, &self.state);
+        let state = query_render_state(&self.template, &self.state, self.generation);
         let dto = |view: ComponentView| self.component_dto(view);
         RenderView {
             pages: state
@@ -291,8 +321,19 @@ where
                 ActionKind::Keys => "keys",
             },
             app_action,
+            image_id: view.image_id,
         }
     }
+}
+
+/// The images of `template` as `data:` URIs, by the ids `render` gives them.
+fn encode_images(template: &Template, generation: u64) -> BTreeMap<String, String> {
+    template
+        .images()
+        .iter()
+        .enumerate()
+        .map(|(index, asset)| (image_id(generation, ImageRef(index)), data_uri::of(asset)))
+        .collect()
 }
 
 fn app_action_name(action: &AppAction) -> &'static str {
@@ -325,14 +366,22 @@ mod tests {
     }
 
     fn panel_with_config<S: ConfigStore>(template: &str, config: S) -> TestPanel<S> {
+        panel_of(&TemplatePackage::single_file(template), config)
+    }
+
+    fn panel_of<S: ConfigStore>(package: &TemplatePackage, config: S) -> TestPanel<S> {
         Panel::new(
-            template,
+            package,
             StaticKeybindProvider::wow_defaults(),
             FakeInputSender::new(),
             FakeClock::new(),
             config,
         )
         .expect("the template loads")
+    }
+
+    fn single(yaml: &str) -> TemplatePackage {
+        TemplatePackage::single_file(yaml)
     }
 
     /// A store that can neither read nor write: a first launch with a
@@ -581,7 +630,7 @@ mod tests {
         panel.press("lock").unwrap();
 
         panel
-            .switch_template("wow-demo.yaml", WOW_DEMO_TEMPLATE)
+            .switch_template("wow-demo.yaml", &single(WOW_DEMO_TEMPLATE))
             .unwrap();
 
         let view = panel.render();
@@ -596,7 +645,7 @@ mod tests {
     fn switch_template_saves_last_template() {
         let mut panel = panel_with(WOW_DEFAULT_KEYS_TEMPLATE);
         panel
-            .switch_template("wow-demo.yaml", WOW_DEMO_TEMPLATE)
+            .switch_template("wow-demo.yaml", &single(WOW_DEMO_TEMPLATE))
             .unwrap();
         assert_eq!(
             panel.config().load().unwrap(),
@@ -610,7 +659,7 @@ mod tests {
             panel_with(WOW_DEFAULT_KEYS_TEMPLATE).named(Some("wow-default-keys.yaml".into()));
         panel.navigate(NavDirectionDto::Next).unwrap();
 
-        let result = panel.switch_template("broken.yaml", "pages: nope");
+        let result = panel.switch_template("broken.yaml", &single("pages: nope"));
 
         assert!(matches!(result, Err(PanelError::Template(_))));
         assert_eq!(panel.template_name(), Some("wow-default-keys.yaml"));
@@ -634,7 +683,7 @@ mod tests {
     fn a_failed_save_does_not_undo_the_switch() {
         let mut panel = panel_with_config(WOW_DEFAULT_KEYS_TEMPLATE, FailingConfigStore);
         assert!(panel
-            .switch_template("wow-demo.yaml", WOW_DEMO_TEMPLATE)
+            .switch_template("wow-demo.yaml", &single(WOW_DEMO_TEMPLATE))
             .is_ok());
         assert_eq!(panel.template_name(), Some("wow-demo.yaml"));
     }
@@ -734,7 +783,7 @@ mod tests {
     #[test]
     fn panel_new_rejects_a_template_that_does_not_fit() {
         let result = Panel::new(
-            &too_tall_template(),
+            &single(&too_tall_template()),
             StaticKeybindProvider::wow_defaults(),
             FakeInputSender::new(),
             FakeClock::new(),
@@ -756,7 +805,7 @@ mod tests {
             panel_with(WOW_DEFAULT_KEYS_TEMPLATE).named(Some("wow-default-keys.yaml".into()));
         panel.navigate(NavDirectionDto::Next).unwrap();
 
-        let result = panel.switch_template("tall.yaml", &too_tall_template());
+        let result = panel.switch_template("tall.yaml", &single(&too_tall_template()));
 
         match result {
             Err(PanelError::Template(message)) => assert_eq!(
@@ -802,5 +851,145 @@ mod tests {
             assert_eq!(max[&name], at_max.to_string(), "`{}`", spec.path);
         }
         assert_eq!(changed, 13);
+    }
+
+    // --- Images from a template folder ---
+
+    use plinth_infra::template_dir::TemplateAssets;
+    use std::path::{Path, PathBuf};
+
+    /// The part of a PNG the loader reads: the signature and an `IHDR` of
+    /// `width` × `height`, then `IEND`. The CRCs are not checked, so they
+    /// are left at zero; `tag` makes two images differ in their bytes.
+    fn png_header(width: u32, height: u32, tag: u8) -> Vec<u8> {
+        let mut bytes = b"\x89PNG\r\n\x1a\n".to_vec();
+        bytes.extend_from_slice(&13u32.to_be_bytes());
+        bytes.extend_from_slice(b"IHDR");
+        bytes.extend_from_slice(&width.to_be_bytes());
+        bytes.extend_from_slice(&height.to_be_bytes());
+        bytes.extend_from_slice(&[8, 6, 0, 0, 0]);
+        bytes.extend_from_slice(&[0, 0, 0, tag]);
+        bytes.extend_from_slice(&0u32.to_be_bytes());
+        bytes.extend_from_slice(b"IEND");
+        bytes.extend_from_slice(&[0, 0, 0, 0]);
+        bytes
+    }
+
+    /// A template folder of its own under the temp dir, with `files`.
+    fn image_folder(test: &str, files: &[(&str, Vec<u8>)]) -> PathBuf {
+        let folder =
+            std::env::temp_dir().join(format!("plinth-panel-{}-{test}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        for (path, bytes) in files {
+            let file = folder.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, bytes).unwrap();
+        }
+        folder
+    }
+
+    /// One page with a button per `(id, image)`, side by side.
+    fn image_template(buttons: &[(&str, &str)]) -> String {
+        let components: String = buttons
+            .iter()
+            .enumerate()
+            .map(|(col, (id, image))| {
+                format!(
+                    "      - {{ id: {id}, position: {{ row: 0, col: {col} }}, keys: \"m\", label: \"{id}\", image: \"{image}\" }}\n"
+                )
+            })
+            .collect();
+        format!(
+            "schema_version: \"1\"\nmetadata: {{ game: WoW, version: \"1\", author: dev }}\npages:\n  - components:\n{components}      - {{ id: plain, position: {{ row: 1, col: 0 }}, keys: \"m\" }}\nsidebar: {{ default_side: right, components: [] }}\n"
+        )
+    }
+
+    fn folder_package(folder: &Path, yaml: String) -> TemplatePackage {
+        TemplatePackage {
+            yaml,
+            assets: TemplateAssets::Folder(folder.to_path_buf()),
+        }
+    }
+
+    fn image_ids(view: &RenderView) -> Vec<Option<&str>> {
+        view.pages[0]
+            .components
+            .iter()
+            .map(|c| c.image_id.as_deref())
+            .collect()
+    }
+
+    #[test]
+    fn the_same_file_twice_is_one_image() {
+        let folder = image_folder("same-file", &[("img/a.png", png_header(2, 2, 1))]);
+        let yaml = image_template(&[("one", "img/a.png"), ("two", "img/a.png")]);
+        let panel = panel_of(
+            &folder_package(&folder, yaml),
+            InMemoryConfigStore::default(),
+        );
+
+        assert_eq!(
+            image_ids(&panel.render()),
+            vec![Some("t1i0"), Some("t1i0"), None]
+        );
+        let images = panel.template_images();
+        assert_eq!(images.keys().collect::<Vec<_>>(), vec!["t1i0"]);
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn render_view_carries_ids_not_data() {
+        let folder = image_folder("ids-not-data", &[("a.png", png_header(2, 2, 1))]);
+        let yaml = image_template(&[("one", "a.png")]);
+        let panel = panel_of(
+            &folder_package(&folder, yaml),
+            InMemoryConfigStore::default(),
+        );
+
+        let json = serde_json::to_value(panel.render()).unwrap();
+        assert_eq!(json["pages"][0]["components"][0]["imageId"], "t1i0");
+        // A button without an image has no `imageId` at all.
+        assert!(json["pages"][0]["components"][1].get("imageId").is_none());
+        assert!(!json.to_string().contains("data:"), "{json}");
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn template_images_maps_each_id_to_its_data_uri() {
+        let (a, b) = (png_header(2, 2, 1), png_header(3, 1, 2));
+        let folder = image_folder(
+            "data-uris",
+            &[("a.png", a.clone()), ("img/b.png", b.clone())],
+        );
+        let package = folder_package(
+            &folder,
+            image_template(&[("one", "a.png"), ("two", "img/b.png")]),
+        );
+        let mut panel = panel_of(&package, InMemoryConfigStore::default());
+
+        let uri = |bytes: &[u8]| format!("data:image/png;base64,{}", data_uri::base64(bytes));
+        let expected: BTreeMap<String, String> =
+            [("t1i0".to_string(), uri(&a)), ("t1i1".to_string(), uri(&b))].into();
+        assert_eq!(panel.template_images(), expected);
+        assert_eq!(
+            image_ids(&panel.render()),
+            vec![Some("t1i0"), Some("t1i1"), None]
+        );
+
+        // Another template is another generation: no id of the first one is
+        // left, even for the same files.
+        panel.switch_template("t/", &package).unwrap();
+        let ids: Vec<String> = panel.template_images().into_keys().collect();
+        assert_eq!(ids, vec!["t2i0", "t2i1"]);
+        assert_eq!(
+            image_ids(&panel.render()),
+            vec![Some("t2i0"), Some("t2i1"), None]
+        );
+        // A template without images has none.
+        panel
+            .switch_template("wow-demo.yaml", &single(WOW_DEMO_TEMPLATE))
+            .unwrap();
+        assert!(panel.template_images().is_empty());
+        let _ = std::fs::remove_dir_all(folder);
     }
 }

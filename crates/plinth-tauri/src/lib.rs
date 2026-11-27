@@ -11,6 +11,7 @@ use plinth_infra::template_dir::TemplateDir;
 use tauri::Manager;
 
 pub mod commands;
+pub mod data_uri;
 #[cfg(test)]
 mod packaging;
 pub mod panel;
@@ -32,7 +33,7 @@ pub fn run() {
             let last = config.load().ok().and_then(|prefs| prefs.last_template);
             let startup = pick_startup_template(&dir, last.as_deref(), loads_with_wow_catalog);
             let panel: commands::AppPanel = Panel::new(
-                &startup.yaml,
+                &startup.package,
                 StaticKeybindProvider::wow_defaults(),
                 commands::platform_sender(),
                 SystemClock::new(),
@@ -47,7 +48,7 @@ pub fn run() {
                 &names,
                 |name| {
                     dir.read(name)
-                        .map(|yaml| loads_with_wow_catalog(&yaml))
+                        .map(|package| loads_with_wow_catalog(&package))
                         .unwrap_or(false)
                 },
                 panel.template_name(),
@@ -60,6 +61,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::render_state,
+            commands::template_images,
             commands::press,
             commands::navigate
         ])

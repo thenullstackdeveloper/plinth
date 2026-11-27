@@ -1,7 +1,9 @@
 //! Domain errors. They speak the product's language, never infrastructure's
-//! (no file paths, no input-layer types, etc.).
+//! (no input-layer types, no paths of the user's disk). The only paths they
+//! name are those a template writes, relative to its own folder.
 
 use crate::action::ActionId;
+use crate::image::ImageUse;
 use crate::theme::TokenKind;
 
 /// Everything that can go wrong inside the game-agnostic core.
@@ -108,4 +110,21 @@ pub enum DomainError {
         needed: u32,
         available: u32,
     },
+
+    /// An image path a template may not use: see `ImagePath`.
+    #[error("`{path}` is not a valid image path: {reason}")]
+    InvalidImagePath { path: String, reason: &'static str },
+
+    /// An image larger than its use allows, by its header or its size.
+    #[error("`{path}` is too large for {use_}: {measured} > {limit}")]
+    ImageTooLarge {
+        path: String,
+        use_: ImageUse,
+        measured: String,
+        limit: String,
+    },
+
+    /// A component points to an image the template does not have.
+    #[error("image {0} is not one of the template's images")]
+    UnknownImage(usize),
 }

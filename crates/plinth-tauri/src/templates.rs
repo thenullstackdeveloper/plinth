@@ -3,7 +3,7 @@
 
 use plinth_application::GameKeybindProvider;
 use plinth_infra::keybinds_static::StaticKeybindProvider;
-use plinth_infra::template_dir::TemplateDir;
+use plinth_infra::template_dir::{TemplateDir, TemplatePackage};
 use plinth_infra::template_fs::FsTemplateSource;
 
 use crate::panel::{PANEL_SIZE, WOW_DEFAULT_KEYS_TEMPLATE, WOW_DEMO_TEMPLATE};
@@ -17,21 +17,21 @@ pub const BUNDLED_TEMPLATES: &[(&str, &str)] = &[
 /// The folder template to open when the user has not chosen one.
 pub const DEFAULT_TEMPLATE_NAME: &str = "wow-default-keys.yaml";
 
-/// The template to open: its file name in the folder (`None` for the
-/// embedded fallback) and its YAML.
+/// The template to open: its name in the folder (`None` for the embedded
+/// fallback) and what was read for it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StartupTemplate {
     pub name: Option<String>,
-    pub yaml: String,
+    pub package: TemplatePackage,
 }
 
-/// Whether `yaml` loads as a template against the WoW catalog and fits the
-/// panel window.
-pub fn loads_with_wow_catalog(yaml: &str) -> bool {
+/// Whether `package` loads as a template against the WoW catalog, images
+/// included, and fits the panel window.
+pub fn loads_with_wow_catalog(package: &TemplatePackage) -> bool {
     FsTemplateSource::new(StaticKeybindProvider::wow_defaults().catalog())
         .map(|source| {
             source
-                .load_str(yaml)
+                .load_package(package)
                 .is_ok_and(|template| template.check_fit(PANEL_SIZE).is_ok())
         })
         .unwrap_or(false)
@@ -43,24 +43,24 @@ pub fn loads_with_wow_catalog(yaml: &str) -> bool {
 pub fn pick_startup_template(
     dir: &TemplateDir,
     last: Option<&str>,
-    yaml_loads: impl Fn(&str) -> bool,
+    package_loads: impl Fn(&TemplatePackage) -> bool,
 ) -> StartupTemplate {
     let candidates = last
         .into_iter()
         .chain(std::iter::once(DEFAULT_TEMPLATE_NAME));
     for name in candidates {
-        if let Ok(yaml) = dir.read(name) {
-            if yaml_loads(&yaml) {
+        if let Ok(package) = dir.read(name) {
+            if package_loads(&package) {
                 return StartupTemplate {
                     name: Some(name.to_string()),
-                    yaml,
+                    package,
                 };
             }
         }
     }
     StartupTemplate {
         name: None,
-        yaml: WOW_DEFAULT_KEYS_TEMPLATE.to_string(),
+        package: TemplatePackage::single_file(WOW_DEFAULT_KEYS_TEMPLATE),
     }
 }
 
@@ -93,7 +93,7 @@ mod tests {
         let (root, dir) = folder("last-wins", &[]);
         let picked = pick_startup_template(&dir, Some("wow-demo.yaml"), loads_with_wow_catalog);
         assert_eq!(picked.name.as_deref(), Some("wow-demo.yaml"));
-        assert_eq!(picked.yaml, WOW_DEMO_TEMPLATE);
+        assert_eq!(picked.package.yaml, WOW_DEMO_TEMPLATE);
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -102,7 +102,10 @@ mod tests {
         let (root, dir) = folder("last-missing", &[]);
         let picked = pick_startup_template(&dir, Some("gone.yaml"), loads_with_wow_catalog);
         assert_eq!(picked.name.as_deref(), Some(DEFAULT_TEMPLATE_NAME));
-        assert_eq!(picked.yaml, WOW_DEFAULT_KEYS_TEMPLATE);
+        assert_eq!(
+            picked.package,
+            TemplatePackage::single_file(WOW_DEFAULT_KEYS_TEMPLATE)
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -129,7 +132,10 @@ mod tests {
         let dir = TemplateDir::new(root.clone());
         let picked = pick_startup_template(&dir, Some("wow-demo.yaml"), loads_with_wow_catalog);
         assert_eq!(picked.name, None);
-        assert_eq!(picked.yaml, WOW_DEFAULT_KEYS_TEMPLATE);
+        assert_eq!(
+            picked.package,
+            TemplatePackage::single_file(WOW_DEFAULT_KEYS_TEMPLATE)
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
@@ -151,9 +157,14 @@ mod tests {
     #[test]
     fn bundled_templates_all_load() {
         for (name, yaml) in BUNDLED_TEMPLATES {
-            assert!(loads_with_wow_catalog(yaml), "`{name}` must load");
+            assert!(
+                loads_with_wow_catalog(&TemplatePackage::single_file(*yaml)),
+                "`{name}` must load"
+            );
         }
-        assert!(!loads_with_wow_catalog("pages: nope\n"));
+        assert!(!loads_with_wow_catalog(&TemplatePackage::single_file(
+            "pages: nope\n"
+        )));
     }
 
     #[test]
@@ -192,7 +203,9 @@ mod tests {
             source.load_str(&wide).is_ok(),
             "the wide template must load"
         );
-        assert!(!loads_with_wow_catalog(&wide));
+        assert!(!loads_with_wow_catalog(&TemplatePackage::single_file(
+            wide.as_str()
+        )));
 
         let (root, dir) = folder("does-not-fit", &[("wide.yaml", &wide)]);
         let picked = pick_startup_template(&dir, Some("wide.yaml"), loads_with_wow_catalog);

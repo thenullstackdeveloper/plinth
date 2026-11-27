@@ -1,6 +1,7 @@
 //! Tauri commands: thin input adapters. They lock the managed panel, call it
 //! and translate errors to strings. No logic lives here.
 
+use std::collections::BTreeMap;
 use std::sync::Mutex;
 
 use plinth_application::ActionOutcome;
@@ -41,6 +42,17 @@ pub type AppPanel = Panel<Sender, StaticKeybindProvider, SystemClock, FsConfigSt
 pub fn render_state(panel: State<'_, Mutex<AppPanel>>) -> Result<RenderView, String> {
     let panel = panel.lock().map_err(|e| e.to_string())?;
     Ok(panel.render())
+}
+
+/// Image id → `data:` URI of the template on screen. The UI asks for it
+/// before `render_state`, at start and on every `panel-changed`, so the view
+/// itself only carries ids.
+#[tauri::command]
+pub fn template_images(
+    panel: State<'_, Mutex<AppPanel>>,
+) -> Result<BTreeMap<String, String>, String> {
+    let panel = panel.lock().map_err(|e| e.to_string())?;
+    Ok(panel.template_images())
 }
 
 /// Answers with the view after the press. A press the lock or a page edge

@@ -63,7 +63,7 @@ fn vertical_slice_with_fakes() {
     );
 
     // 6. The render DTO projects the two pages and the sidebar.
-    let render = query_render_state(&template, &state);
+    let render = query_render_state(&template, &state, 1);
     assert_eq!(render.pages.len(), 2);
     assert_eq!(render.sidebar.len(), 1);
 }

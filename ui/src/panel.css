@@ -126,6 +126,33 @@ body {
   color: var(--plinth-color-quit-text);
 }
 
+/* A button with an image: the image fills the face inside the border (the
+   padding box, which `inset: 0` covers) and is cropped to it, never
+   stretched. */
+.plinth-button--image {
+  position: relative;
+  overflow: hidden;
+}
+
+.plinth-button__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* The label over the image, on a dark strip at the bottom so it reads on
+   any picture: `color.button.background` at 75 %. */
+.plinth-button--image > .plinth-button__label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: color-mix(in srgb, var(--plinth-color-button-background) 75%, transparent);
+}
+
 /* A label longer than its button is cut on one line with an ellipsis, so it
    never stretches the cell or spills out of it. */
 .plinth-button__label {

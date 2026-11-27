@@ -36,6 +36,7 @@ export function PageView(props: {
 }) {
   const press = usePanelStore((s) => s.press);
   const navigate = usePanelStore((s) => s.navigate);
+  const images = usePanelStore((s) => s.images);
   const sectionRef = useRef<HTMLElement>(null);
   const guard = useRef(createDragGuard()).current;
   const dir = props.direction === "prev" ? -1 : 1;
@@ -70,20 +71,27 @@ export function PageView(props: {
               handleSwipeEnd(info, sectionRef.current?.getBoundingClientRect().width ?? 0, props.locked, (d) => void navigate(d));
             }}
           >
-            {props.components.map((component) => (
-              <button
-                key={component.id}
-                type="button"
-                className="plinth-button"
-                data-app-action={component.appAction ?? undefined}
-                style={{ gridRow: component.row + 1, gridColumn: component.col + 1 }}
-                onClick={() => {
-                  if (!guard.shouldIgnoreClick()) void press(component.id);
-                }}
-              >
-                <span className="plinth-button__label">{component.label ?? component.id}</span>
-              </button>
-            ))}
+            {props.components.map((component) => {
+              // Only an id the table has; the store kept only the URIs `safeImageSrc` lets through.
+              const id = component.imageId;
+              const image = id !== undefined && Object.hasOwn(images, id) ? images[id] : null;
+              return (
+                <button
+                  key={component.id}
+                  type="button"
+                  className={image === null ? "plinth-button" : "plinth-button plinth-button--image"}
+                  data-app-action={component.appAction ?? undefined}
+                  style={{ gridRow: component.row + 1, gridColumn: component.col + 1 }}
+                  onClick={() => {
+                    if (!guard.shouldIgnoreClick()) void press(component.id);
+                  }}
+                >
+                  {/* Decorative: the label stays the button's name. */}
+                  {image !== null && <img className="plinth-button__image" src={image} alt="" draggable={false} />}
+                  <span className="plinth-button__label">{component.label ?? component.id}</span>
+                </button>
+              );
+            })}
           </motion.div>
         </motion.div>
       </AnimatePresence>

@@ -98,7 +98,13 @@
           ]
         },
         "label": { "type": "string" },
-        "icon": { "type": "string" }
+        "icon": { "type": "string" },
+        "image": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 259,
+          "description": "A PNG that fills the face of the button: a path relative to the template's folder, like 'img/fire.png'. Only a template in a folder (with a template.yaml) can reference images."
+        }
       }
     }
   }

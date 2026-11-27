@@ -5,8 +5,8 @@
 use std::time::Duration;
 
 use plinth_domain::{
-    Action, AppAction, Component, ComponentId, DomainError, GameAction, KeyMacro, KeySequence,
-    KeyStepKind, NavDirection, RuntimeState, Template,
+    Action, AppAction, Component, ComponentId, DomainError, GameAction, ImageRef, KeyMacro,
+    KeySequence, KeyStepKind, NavDirection, RuntimeState, Template,
 };
 
 use crate::dto::{ActionKind, ComponentView, PageView, RenderState};
@@ -220,14 +220,27 @@ fn run_macro<I: InputSender, C: Clock>(
     Ok(())
 }
 
+/// The id of a template's image for the UI: `t<generation>i<index>`. The
+/// host raises `generation` on every template it loads, so an id never
+/// points to an image of the template before.
+pub fn image_id(generation: u64, image: ImageRef) -> String {
+    format!("t{generation}i{}", image.0)
+}
+
 /// QueryRenderState — projects the current state into a DTO for the UI.
-pub fn query_render_state(template: &Template, state: &RuntimeState) -> RenderState {
+/// `generation` is the host's count of loaded templates, for the image ids.
+pub fn query_render_state(
+    template: &Template,
+    state: &RuntimeState,
+    generation: u64,
+) -> RenderState {
     let to_view = |c: &Component| ComponentView {
         id: c.id.as_str().to_string(),
         row: c.position.row,
         col: c.position.col,
         label: c.visual.label.clone(),
         icon: c.visual.icon.clone(),
+        image_id: c.visual.image.map(|image| image_id(generation, image)),
         action_kind: match c.action {
             Action::App(_) => ActionKind::App,
             Action::Game(_) => ActionKind::Game,
