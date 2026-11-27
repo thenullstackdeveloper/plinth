@@ -7,6 +7,7 @@ import { safeImageSrc } from "../image";
 import { pageTransition, snapBack } from "../motion";
 import { usePanelStore } from "../store/panelStore";
 import { handleSwipeEnd } from "../swipe";
+import { themeStyle } from "../theme";
 
 /** `n` grid tracks, each at least a button's minimum size, sharing the rest. */
 function tracks(n: number): string {
@@ -135,7 +136,9 @@ export function PageView(props: {
                 component={component}
                 label={component.label ?? component.id}
                 allowImage
-                style={{ gridRow: component.row + 1, gridColumn: component.col + 1 }}
+                // Its own colours, if its `style` gives any, over the theme
+                // the panel sets: only on the button, so its neighbours keep it.
+                style={{ ...themeStyle(component.style ?? {}), gridRow: component.row + 1, gridColumn: component.col + 1 }}
                 onClick={() => {
                   if (!guard.shouldIgnoreClick()) void press(component.id);
                 }}

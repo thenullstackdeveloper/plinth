@@ -95,6 +95,47 @@ Every other problem with the `theme` block starts with `invalid theme: `, then:
 | out of range | `` theme token `size.button.min`: 40px is outside the allowed range 44px to 96px `` |
 | unquoted colour | `` `color.button.background` has no value; a colour must be quoted, like "#1e1e2e", because an unquoted # starts a YAML comment `` |
 
+## Per-button style
+
+A button on a page can change its own colours with `style`, a map like `theme` that applies
+to that button only:
+
+```yaml
+pages:
+  - components:
+      - id: big_cooldown
+        position: { row: 0, col: 0 }
+        keys: "1"
+        label: "Cooldown"
+        style:
+          color.button.background: "#7a1f2b"
+          color.button.text: "#ffffff"
+```
+
+It takes only these four tokens:
+
+- `color.button.background`
+- `color.button.text`
+- `color.button.border`
+- `color.button.pressed-background`
+
+The rules:
+
+- **The same values as `theme`.** Each entry is checked like a theme entry (the token exists,
+  it is themeable, the value has its type), and a colour is quoted `#rrggbb`. The messages are
+  the theme's, starting with ``invalid style on `<id>`: `` instead of `invalid theme: `.
+- **Only those four.** Any other token, even one a `theme` may change, is rejected:
+  ``invalid style on `big_cooldown`: theme token `size.button.min` cannot be set on one button; its `style` only takes …``.
+  Sizes, radii and type stay the theme's.
+- **One to four entries.** An empty `style` is rejected by the schema.
+- **Only what it gives.** A button's `style` changes only the tokens it names; the rest keep
+  the template's `theme`, and its neighbours keep the whole theme.
+- **Not everywhere.** A sidebar button cannot have a `style`, nor can the quit button, so it
+  always looks like `Quit`.
+
+Rust writes those tokens as CSS from the parsed values, like the theme, and the UI sets them on
+the button itself, through the same `--plinth-…` filter as the theme.
+
 ## The tokens
 
 `allowed` is what a template may write: `#rrggbb` for any colour, a range (inclusive) for the

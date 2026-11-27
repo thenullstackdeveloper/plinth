@@ -143,6 +143,13 @@ pub enum DomainError {
     #[error("the quit button cannot have `{field}`, so it always looks the same")]
     NotAllowedOnQuit { field: &'static str },
 
+    /// A button's `style` naming a token other than its four colours
+    /// (`STYLE_TOKENS`).
+    #[error(
+        "theme token `{token}` cannot be set on one button; its `style` only takes `color.button.background`, `color.button.text`, `color.button.border` and `color.button.pressed-background`"
+    )]
+    StyleTokenNotAllowed { token: String },
+
     /// A sidebar button with something only a page button may have.
     #[error("`{component}` is in the sidebar, which does not allow `{field}`")]
     NotAllowedInSidebar {

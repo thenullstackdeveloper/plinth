@@ -58,6 +58,7 @@ mod tests {
                 image: None,
                 hide_label: false,
             },
+            style: Default::default(),
             action,
         }
     }

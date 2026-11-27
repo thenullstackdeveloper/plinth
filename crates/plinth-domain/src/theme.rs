@@ -240,6 +240,39 @@ pub const LAYOUT_TOKENS: [&str; 7] = [
     "space.sidebar.padding",
 ];
 
+/// The colours a button may change for itself with its `style`, and nothing
+/// else: its size, shape and type stay those of the theme.
+pub const STYLE_TOKENS: [&str; 4] = [
+    "color.button.background",
+    "color.button.text",
+    "color.button.border",
+    "color.button.pressed-background",
+];
+
+/// Some tokens with their values, checked like a theme's overrides but
+/// without the defaults: what a button's `style` changes, and only that, so
+/// the rest comes from the template's theme.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ThemeOverrides(Vec<(TokenPath, TokenValue)>);
+
+impl ThemeOverrides {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn get(&self, path: &str) -> Option<&TokenValue> {
+        self.0
+            .iter()
+            .find(|(p, _)| p.as_str() == path)
+            .map(|(_, value)| value)
+    }
+
+    /// The tokens in the order they were given.
+    pub fn iter(&self) -> impl Iterator<Item = (&TokenPath, &TokenValue)> {
+        self.0.iter().map(|(path, value)| (path, value))
+    }
+}
+
 /// The closed set of tokens: a template can only change what is here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ThemeCatalog {
@@ -281,7 +314,41 @@ impl ThemeCatalog {
     /// may change, hold a value of its kind and keep to its rule.
     pub fn resolve(&self, overrides: Vec<(String, TokenValue)>) -> Result<Theme, DomainError> {
         let mut theme = self.defaults();
+        for (path, value) in self.check_overrides(overrides)? {
+            theme.0.insert(path, value);
+        }
+        Ok(theme)
+    }
+
+    /// Only the given overrides, checked like `resolve` checks them and, on
+    /// top, each one a token of `STYLE_TOKENS`: what a button's `style` may
+    /// change. The other tokens are left out, not filled with defaults, so
+    /// they keep the template's theme.
+    pub fn resolve_partial(
+        &self,
+        overrides: Vec<(String, TokenValue)>,
+    ) -> Result<ThemeOverrides, DomainError> {
+        let checked = self.check_overrides(overrides)?;
+        if let Some((path, _)) = checked
+            .iter()
+            .find(|(path, _)| !STYLE_TOKENS.contains(&path.as_str()))
+        {
+            return Err(DomainError::StyleTokenNotAllowed {
+                token: path.to_string(),
+            });
+        }
+        Ok(ThemeOverrides(checked))
+    }
+
+    /// Each override, in this order: the only one for its token, a token of
+    /// the catalog, one a template may change, a value of its kind and
+    /// within its rule.
+    fn check_overrides(
+        &self,
+        overrides: Vec<(String, TokenValue)>,
+    ) -> Result<Vec<(TokenPath, TokenValue)>, DomainError> {
         let mut seen = std::collections::BTreeSet::new();
+        let mut checked = Vec::with_capacity(overrides.len());
         for (name, value) in overrides {
             if !seen.insert(name.clone()) {
                 return Err(DomainError::DuplicateToken(name));
@@ -300,9 +367,9 @@ impl ThemeCatalog {
                 });
             }
             check_value(&name, spec.rule, &value)?;
-            theme.0.insert(spec.path.clone(), value);
+            checked.push((spec.path.clone(), value));
         }
-        Ok(theme)
+        Ok(checked)
     }
 }
 
@@ -625,6 +692,74 @@ mod tests {
         assert_eq!(TokenValue::Px(64).to_string(), "64px");
         assert_eq!(TokenValue::Ms(200).to_string(), "200ms");
         assert_eq!(TokenValue::FontWeight(600).to_string(), "600");
+    }
+
+    #[test]
+    fn resolve_partial_checks_like_resolve_before_the_four_tokens() {
+        let partial = |name: &str, value: TokenValue| {
+            full_catalog().resolve_partial(vec![(name.to_string(), value)])
+        };
+        // One of the four, alone and without the defaults of the others.
+        let style = partial(BUTTON_BACKGROUND, colour(122, 31, 43)).unwrap();
+        assert_eq!(
+            style.iter().collect::<Vec<_>>(),
+            vec![(
+                &TokenPath::new(BUTTON_BACKGROUND).unwrap(),
+                &colour(122, 31, 43)
+            )]
+        );
+        assert_eq!(style.get(BUTTON_MIN), None);
+
+        // The checks of `resolve` come first, in its order: unknown, fixed,
+        // kind and range, whether the token is one of the four or not.
+        for (name, value, err) in [
+            (
+                "color.button.nope",
+                colour(1, 2, 3),
+                DomainError::UnknownToken("color.button.nope".into()),
+            ),
+            (
+                QUIT_BACKGROUND,
+                colour(1, 2, 3),
+                DomainError::TokenNotThemeable(QUIT_BACKGROUND.into()),
+            ),
+            (
+                BUTTON_BACKGROUND,
+                TokenValue::Px(64),
+                DomainError::TokenKindMismatch {
+                    token: BUTTON_BACKGROUND.into(),
+                    expected: TokenKind::Color,
+                },
+            ),
+            (
+                BUTTON_MIN,
+                TokenValue::Px(40),
+                DomainError::TokenOutOfRange {
+                    token: BUTTON_MIN.into(),
+                    value: "40px".into(),
+                    min: "44px".into(),
+                    max: "96px".into(),
+                },
+            ),
+            // Only then, a valid token outside the four.
+            (
+                BUTTON_MIN,
+                TokenValue::Px(64),
+                DomainError::StyleTokenNotAllowed {
+                    token: BUTTON_MIN.into(),
+                },
+            ),
+        ] {
+            assert_eq!(partial(name, value.clone()), Err(err), "{name}: {value}");
+        }
+        let twice = full_catalog().resolve_partial(vec![
+            (BUTTON_BACKGROUND.into(), colour(1, 2, 3)),
+            (BUTTON_BACKGROUND.into(), colour(4, 5, 6)),
+        ]);
+        assert_eq!(
+            twice,
+            Err(DomainError::DuplicateToken(BUTTON_BACKGROUND.into()))
+        );
     }
 
     #[test]

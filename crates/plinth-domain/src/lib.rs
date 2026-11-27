@@ -24,8 +24,8 @@ pub use key::{
 pub use runtime::{NavDirection, RuntimeState};
 pub use template::{Component, ComponentId, Page, Sidebar, Template, TemplateMetadata};
 pub use theme::{
-    GridSize, Hundredths, PanelSize, Srgb8, Theme, ThemeCatalog, TokenKind, TokenPath, TokenRule,
-    TokenSpec, TokenValue, LAYOUT_TOKENS,
+    GridSize, Hundredths, PanelSize, Srgb8, Theme, ThemeCatalog, ThemeOverrides, TokenKind,
+    TokenPath, TokenRule, TokenSpec, TokenValue, LAYOUT_TOKENS, STYLE_TOKENS,
 };
 
 #[cfg(test)]
@@ -197,6 +197,7 @@ mod tests {
             id: ComponentId::new(id),
             position: ComponentPosition { row: 0, col: 0 },
             visual: VisualProps::default(),
+            style: Default::default(),
             action,
         }
     }

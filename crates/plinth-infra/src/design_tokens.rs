@@ -1176,4 +1176,39 @@ mod tests {
             fixed
         });
     }
+
+    /// The heading of the guide's section on a button's own `style`.
+    const STYLE_SECTION: &str = "## Per-button style";
+
+    /// The tokens the guide's `style` section lists, one `- `token`` bullet
+    /// each, in the order it lists them.
+    fn theming_doc_style_tokens() -> Vec<String> {
+        let mut lines = THEMING_DOC
+            .lines()
+            .skip_while(|line| line.trim() != STYLE_SECTION);
+        assert!(
+            lines.next().is_some(),
+            "docs/theming.md has no `{STYLE_SECTION}` section"
+        );
+        lines
+            .take_while(|line| !line.starts_with("## "))
+            .filter_map(|line| line.strip_prefix("- `"))
+            .filter_map(|rest| rest.split('`').next())
+            .map(str::to_string)
+            .collect()
+    }
+
+    #[test]
+    fn theming_doc_lists_the_four_style_tokens() {
+        let listed = theming_doc_style_tokens();
+        assert_eq!(listed, plinth_domain::STYLE_TOKENS.to_vec());
+        // Each one a colour a template may change, so a style takes it like
+        // a theme does.
+        let catalog = catalog();
+        for path in plinth_domain::STYLE_TOKENS {
+            let spec = spec(&catalog, path);
+            assert!(spec.themeable, "`{path}` must be themeable");
+            assert_eq!(spec.default.kind(), TokenKind::Color, "`{path}`");
+        }
+    }
 }

@@ -33,6 +33,9 @@ pub struct ComponentView {
     pub image_id: Option<String>,
     /// The label is hidden from view; it stays the button's name.
     pub hide_label: bool,
+    /// The button's own colours as CSS custom properties: only those its
+    /// `style` gives, so the rest keep the theme. Empty when it has none.
+    pub style: Vec<ThemeVar>,
     pub action_kind: ActionKind,
     /// Toggle state (if applicable). The UI uses it for highlighting.
     pub toggled: bool,

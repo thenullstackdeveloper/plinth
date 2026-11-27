@@ -275,3 +275,47 @@ test("Quit keeps its colours under a template theme", async ({ page }) => {
     "rgb(255, 255, 255)",
   ]);
 });
+
+test("a styled button shows its own colour and its neighbour keeps the theme", async ({ page }) => {
+  // Under a template theme (slice-theme.json, #1e1e2e), one button with the
+  // four colours of its own `style`, as Rust sends them, and one without.
+  await installFakeBackend(page, {
+    theme: sliceTheme,
+    pages: [
+      [
+        {
+          ...game("styled", "Styled", 0, 0),
+          style: {
+            "--plinth-color-button-background": "#7a1f2b",
+            "--plinth-color-button-text": "#ffffff",
+            "--plinth-color-button-border": "#f2c14e",
+            "--plinth-color-button-pressed-background": "#9b2c3a",
+          },
+        },
+        game("plain", "Plain", 0, 1),
+      ],
+    ],
+  });
+  await page.goto("/");
+  const styled = page.getByRole("button", { name: "Styled" });
+  const plain = page.getByRole("button", { name: "Plain" });
+  await expect(styled).toBeVisible();
+
+  const colours = (locator: Locator) =>
+    locator.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.backgroundColor, style.color, style.borderTopColor];
+    });
+  expect(await colours(styled)).toEqual(["rgb(122, 31, 43)", "rgb(255, 255, 255)", "rgb(242, 193, 78)"]);
+  // The neighbour keeps the template theme, and the defaults it leaves alone.
+  expect(await colours(plain)).toEqual(["rgb(30, 30, 46)", "rgb(230, 232, 240)", "rgb(98, 106, 144)"]);
+
+  // Held down, the styled button shows its own pressed colour.
+  const b = await box(styled);
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await expect.poll(() => backgroundOf(styled)).toBe("rgb(155, 44, 58)");
+  await page.mouse.up();
+  await expect.poll(() => backgroundOf(styled)).toBe("rgb(122, 31, 43)");
+  expect(await backgroundOf(plain)).toBe("rgb(30, 30, 46)");
+});

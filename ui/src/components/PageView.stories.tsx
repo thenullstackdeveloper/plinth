@@ -324,3 +324,38 @@ export const PageBackground: Story = {
     await waitFor(() => expect(getComputedStyle(slide).backgroundImage).toBe("none"));
   },
 };
+
+/** `color.button.*` of the button's own `style`, as Rust writes them. */
+const OWN_STYLE = {
+  "--plinth-color-button-background": "#7a1f2b",
+  "--plinth-color-button-text": "#ffffff",
+  "--plinth-color-button-border": "#f2c14e",
+  "--plinth-color-button-pressed-background": "#9b2c3a",
+};
+
+export const StyledButton: Story = {
+  args: {
+    components: [
+      // A name outside `--plinth-` never reaches the button, as in the theme.
+      { ...worldMap, style: { ...OWN_STYLE, "--evil": "#000000" } },
+      component("bags", "Bags", { row: 0, col: 1 }),
+    ],
+    cols: 2,
+  },
+  play: async ({ canvas }) => {
+    const styled = getComputedStyle(canvas.getByRole("button", { name: "World map" }));
+    await expect(styled.getPropertyValue("--evil")).toBe("");
+    await expect(styled.backgroundColor).toBe("rgb(122, 31, 43)");
+    await expect(styled.color).toBe("rgb(255, 255, 255)");
+    await expect(styled.borderTopColor).toBe("rgb(242, 193, 78)");
+    await expect(styled.getPropertyValue("--plinth-color-button-pressed-background")).toBe("#9b2c3a");
+    // The rest of the look is the theme's: its border width and radius.
+    await expect(styled.borderTopWidth).toBe("1px");
+    await expect(styled.borderTopLeftRadius).toBe("10px");
+    // Its neighbour keeps the theme's colours (default-theme.json).
+    const plain = getComputedStyle(canvas.getByRole("button", { name: "Bags" }));
+    await expect(plain.backgroundColor).toBe("rgb(38, 42, 59)");
+    await expect(plain.color).toBe("rgb(230, 232, 240)");
+    await expect(plain.borderTopColor).toBe("rgb(98, 106, 144)");
+  },
+};

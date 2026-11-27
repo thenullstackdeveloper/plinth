@@ -16,6 +16,8 @@ export type ComponentDto = {
   iconId?: string;
   /** The label is hidden from view but stays the button's name. Absent when it is shown. */
   hideLabel?: boolean;
+  /** The button's own colours, like `RenderView.theme` but with only the tokens its `style` gives. Absent when it has none. */
+  style?: ThemeVars;
 };
 
 /** Image id (`"t1i0"`) → `data:` URI, for the template on screen. */

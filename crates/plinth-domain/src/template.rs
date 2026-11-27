@@ -8,7 +8,7 @@ use crate::action::{Action, AppAction};
 use crate::error::DomainError;
 use crate::image::{ImageAsset, ImageRef};
 use crate::key::{ComponentPosition, SchemaVersion, SidebarSide, VisualProps};
-use crate::theme::{GridSize, PanelSize, Theme, LAYOUT_TOKENS};
+use crate::theme::{GridSize, PanelSize, Theme, ThemeOverrides, LAYOUT_TOKENS};
 
 /// Identifier of a component, unique within the template.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -39,6 +39,9 @@ pub struct Component {
     pub id: ComponentId,
     pub position: ComponentPosition,
     pub visual: VisualProps,
+    /// The button's own colours, over the template's theme: only the tokens
+    /// its `style` gives. Empty for a button that has none.
+    pub style: ThemeOverrides,
     pub action: Action,
 }
 
@@ -152,7 +155,8 @@ impl Template {
         }
 
         // Where each look is allowed: the quit button has none of its own,
-        // so no template can disguise it, and a sidebar button no image.
+        // so no template can disguise it, and a sidebar button neither an
+        // image nor a style.
         for component in pages
             .iter()
             .flat_map(|p| p.components())
@@ -161,11 +165,16 @@ impl Template {
             check_looks(component)?;
         }
         for component in &sidebar.components {
-            if component.visual.image.is_some() {
-                return Err(DomainError::NotAllowedInSidebar {
-                    field: "image",
-                    component: component.id.as_str().to_string(),
-                });
+            for (field, used) in [
+                ("image", component.visual.image.is_some()),
+                ("style", !component.style.is_empty()),
+            ] {
+                if used {
+                    return Err(DomainError::NotAllowedInSidebar {
+                        field,
+                        component: component.id.as_str().to_string(),
+                    });
+                }
             }
         }
 
@@ -327,13 +336,14 @@ impl Page {
 }
 
 /// A button shows an icon or an image, not both; the quit button shows
-/// neither, and always its label.
+/// neither, no colours of its own, and always its label.
 fn check_looks(component: &Component) -> Result<(), DomainError> {
     let visual = &component.visual;
     if matches!(component.action, Action::App(AppAction::Quit)) {
         for (field, used) in [
             ("icon", visual.icon.is_some()),
             ("image", visual.image.is_some()),
+            ("style", !component.style.is_empty()),
             ("hide_label", visual.hide_label),
         ] {
             if used {
@@ -384,6 +394,7 @@ mod tests {
                 icon,
                 ..VisualProps::default()
             },
+            style: ThemeOverrides::default(),
             action: Action::App(AppAction::NextPage),
         };
         let metadata = TemplateMetadata {
@@ -418,6 +429,7 @@ mod tests {
                 id: ComponentId::new("btn"),
                 position: ComponentPosition { row: 0, col: 0 },
                 visual: VisualProps::default(),
+                style: ThemeOverrides::default(),
                 action: Action::App(AppAction::NextPage),
             }])
             .unwrap()

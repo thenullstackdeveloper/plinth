@@ -127,7 +127,8 @@
         },
         "style": {
           "type": "object",
-          "description": "The button's own colours, as theme tokens. Not on the quit button.",
+          "description": "The button's own colours over the template's theme, as a flat map like theme: only color.button.background, color.button.text, color.button.border and color.button.pressed-background, each checked like in theme. Only on a page button: not in the sidebar and not on the quit button.",
+          "minProperties": 1,
           "maxProperties": 4,
           "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*){1,3}$" },
           "additionalProperties": {

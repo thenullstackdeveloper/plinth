@@ -14,7 +14,7 @@ use crate::ports::{
     Clock, GameKeybindProvider, InputSender, KeyEvent, ProviderError, ResolveError, TemplateError,
     TemplateSource,
 };
-use crate::theme_css::theme_vars;
+use crate::theme_css::{override_vars, theme_vars};
 
 /// The unified error of the application layer.
 #[derive(Debug, thiserror::Error)]
@@ -242,6 +242,7 @@ pub fn query_render_state(
         icon_id: c.visual.icon.map(|icon| image_id(generation, icon)),
         image_id: c.visual.image.map(|image| image_id(generation, image)),
         hide_label: c.visual.hide_label,
+        style: override_vars(&c.style),
         action_kind: match c.action {
             Action::App(_) => ActionKind::App,
             Action::Game(_) => ActionKind::Game,

@@ -9,7 +9,8 @@
 //!
 //! The optional `theme` follows the same path: the schema checks its shape,
 //! each value is parsed to the kind its token has in the `ThemeCatalog`, and
-//! the catalog decides what a template may change.
+//! the catalog decides what a template may change. A button's `style` takes
+//! the same path, and the catalog keeps it to the four colours of a button.
 //!
 //! An `image`, an `icon` or a page `background` is read from the template's
 //! folder with the safe read of `TemplateAssets`, checked by its header
@@ -22,9 +23,9 @@ use std::path::{Path, PathBuf};
 
 use plinth_application::{TemplateError, TemplateSource};
 use plinth_domain::{
-    Action, ActionCatalog, AppAction, Component, ComponentId, ComponentPosition, DomainError,
-    ImageAsset, ImagePath, ImageRef, ImageUse, KeyMacro, Page, SchemaVersion, Sidebar, SidebarSide,
-    Template, TemplateMetadata, Theme, ThemeCatalog, TokenKind, TokenValue, VisualProps,
+    Action, ActionCatalog, Component, ComponentId, ComponentPosition, DomainError, ImageAsset,
+    ImagePath, ImageRef, ImageUse, KeyMacro, Page, SchemaVersion, Sidebar, SidebarSide, Template,
+    TemplateMetadata, Theme, ThemeCatalog, ThemeOverrides, TokenKind, TokenValue, VisualProps,
 };
 use serde_json::Value;
 
@@ -141,16 +142,6 @@ impl FsTemplateSource {
             .and_then(Value::as_array)
             .map(Vec::as_slice)
             .unwrap_or_default();
-        // The domain refuses `image` in the sidebar; `style` does not reach
-        // it yet, so it is refused here.
-        for node in sidebar_nodes {
-            if node.get("style").is_some() {
-                return Err(domain_err(DomainError::NotAllowedInSidebar {
-                    field: "style",
-                    component: str_field(node, "id")?,
-                }));
-            }
-        }
         let sidebar_comps = self.map_components(sidebar_nodes, images)?;
         let sidebar = Sidebar {
             default_side,
@@ -178,27 +169,48 @@ impl FsTemplateSource {
         let entries = node
             .as_object()
             .ok_or_else(|| TemplateError("invalid theme: `theme` must be a map".into()))?;
-        // Per entry, in this order: the token exists, a template may change
-        // it, the value parses to its kind; `resolve` then checks the range.
+        self.parse_overrides(entries)
+            .and_then(|overrides| self.theme_catalog.resolve(overrides))
+            .map_err(theme_err)
+    }
+
+    /// A button's `style`, checked like the `theme` and then against the
+    /// four colours a button may change; only what it gives, so the rest
+    /// keeps the template's theme. No `style` is an empty one.
+    fn map_style(&self, node: &Value, id: &ComponentId) -> Result<ThemeOverrides, TemplateError> {
+        let Some(entries) = node.get("style").and_then(Value::as_object) else {
+            return Ok(ThemeOverrides::default());
+        };
+        self.parse_overrides(entries)
+            .and_then(|overrides| self.theme_catalog.resolve_partial(overrides))
+            .map_err(|e| TemplateError(format!("invalid style on `{}`: {e}", id.as_str())))
+    }
+
+    /// The entries of a `theme` or a `style` as typed values. Per entry, in
+    /// this order: the token exists, a template may change it, the value
+    /// parses to its kind; the catalog then checks the range.
+    fn parse_overrides(
+        &self,
+        entries: &serde_json::Map<String, Value>,
+    ) -> Result<Vec<(String, TokenValue)>, DomainError> {
         let mut overrides = Vec::with_capacity(entries.len());
         for (name, raw) in entries {
             let spec = self
                 .theme_catalog
                 .spec(name)
-                .ok_or_else(|| theme_err(DomainError::UnknownToken(name.clone())))?;
+                .ok_or_else(|| DomainError::UnknownToken(name.clone()))?;
             if !spec.themeable {
-                return Err(theme_err(DomainError::TokenNotThemeable(name.clone())));
+                return Err(DomainError::TokenNotThemeable(name.clone()));
             }
             let expected = spec.default.kind();
-            let value = parse_scalar(expected, raw).ok_or_else(|| {
-                theme_err(DomainError::TokenKindMismatch {
+            let value =
+                parse_scalar(expected, raw).ok_or_else(|| DomainError::TokenKindMismatch {
                     token: name.clone(),
                     expected,
-                })
-            })?;
+                })?;
             overrides.push((name.clone(), value));
         }
-        self.theme_catalog.resolve(overrides).map_err(theme_err)
+        Ok(overrides)
     }
 
     fn map_components(
@@ -233,17 +245,13 @@ impl FsTemplateSource {
                 self.catalog.resolve(&action_raw).map_err(domain_err)?
             }
         };
-        // The domain refuses the other looks on the quit button; `style`
-        // does not reach it yet, so it is refused here.
-        if matches!(action, Action::App(AppAction::Quit)) && node.get("style").is_some() {
-            return Err(domain_err(DomainError::NotAllowedOnQuit { field: "style" }));
-        }
         let image = opt_str(node, "image")
             .map(|raw| images.load(&raw, ImageUse::ButtonImage))
             .transpose()?;
         let icon = opt_str(node, "icon")
             .map(|raw| images.load(&raw, ImageUse::Icon))
             .transpose()?;
+        let style = self.map_style(node, &id)?;
         let visual = VisualProps {
             label: opt_str(node, "label"),
             icon,
@@ -258,6 +266,7 @@ impl FsTemplateSource {
             id,
             position,
             visual,
+            style,
             action,
         })
     }
@@ -1490,6 +1499,155 @@ sidebar: {{ default_side: right, components: [] }}
         assert_eq!(
             err.0,
             "`texto` is not a valid image path: it must end in `.png` or `.webp`, in lower case"
+        );
+    }
+
+    // --- A button's own style ---
+
+    /// A page of two key buttons over a template theme that sets
+    /// `color.button.background`: `styled`, with `style` holding `entries`,
+    /// and its neighbour `plain`, without one.
+    fn with_style(entries: &[&str]) -> String {
+        format!(
+            "schema_version: \"1\"\nmetadata: {{ game: WoW, version: \"1\", author: dev }}\npages:\n  - components:\n      - {{ id: styled, position: {{ row: 0, col: 0 }}, keys: \"m\", style: {{ {} }} }}\n      - {{ id: plain, position: {{ row: 0, col: 1 }}, keys: \"m\" }}\nsidebar: {{ default_side: right, components: [] }}\ntheme:\n  color.button.background: \"#1e1e2e\"\n",
+            entries.join(", ")
+        )
+    }
+
+    fn style_rejection(entries: &[&str]) -> String {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        src.load_str(&with_style(entries)).unwrap_err().0
+    }
+
+    #[test]
+    fn resolve_partial_returns_only_the_given_tokens() {
+        let tokens = embedded_catalog().unwrap();
+        assert_eq!(tokens.specs().len(), 25);
+        let style = tokens
+            .resolve_partial(vec![(BUTTON_BACKGROUND.into(), colour(122, 31, 43))])
+            .unwrap();
+        assert_eq!(style.get(BUTTON_BACKGROUND), Some(&colour(122, 31, 43)));
+        // The other 24 tokens are left out, not filled with their defaults.
+        let left_out: Vec<&str> = tokens
+            .specs()
+            .iter()
+            .map(|spec| spec.path.as_str())
+            .filter(|path| style.get(path).is_none())
+            .collect();
+        assert_eq!(left_out.len(), 24, "{left_out:?}");
+        assert_eq!(style.iter().count(), 1);
+
+        // Through the loader: the button carries the four colours it gives
+        // and nothing else; the template's theme stays, and the neighbour
+        // has no style.
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let template = src
+            .load_str(&with_style(&[
+                r##"color.button.text: "#FFFFFF""##,
+                r##"color.button.background: "#7a1f2b""##,
+                r##"color.button.border: "#f2c14e""##,
+                r##"color.button.pressed-background: "#9b2c3a""##,
+            ]))
+            .unwrap();
+        let [styled, plain] = template.pages()[0].components() else {
+            panic!("two buttons");
+        };
+        let mut tokens: Vec<(&str, String)> = styled
+            .style
+            .iter()
+            .map(|(path, value)| (path.as_str(), value.to_string()))
+            .collect();
+        tokens.sort();
+        assert_eq!(
+            tokens,
+            vec![
+                ("color.button.background", "#7a1f2b".to_string()),
+                ("color.button.border", "#f2c14e".to_string()),
+                ("color.button.pressed-background", "#9b2c3a".to_string()),
+                ("color.button.text", "#ffffff".to_string()),
+            ]
+        );
+        assert!(plain.style.is_empty(), "{:?}", plain.style);
+        assert_eq!(
+            template.theme().get(BUTTON_BACKGROUND),
+            Some(&colour(30, 30, 46))
+        );
+    }
+
+    #[test]
+    fn a_style_outside_the_four_tokens_is_rejected() {
+        let not_allowed = |token: &str| {
+            format!(
+                "invalid style on `styled`: theme token `{token}` cannot be set on one button; its `style` only takes `color.button.background`, `color.button.text`, `color.button.border` and `color.button.pressed-background`"
+            )
+        };
+        // A size a theme may change, with a value in its range.
+        assert_eq!(
+            style_rejection(&[r#"size.button.min: "64px""#]),
+            not_allowed("size.button.min")
+        );
+        // A colour of a button, but not one of the four.
+        assert_eq!(
+            style_rejection(&[r##"color.button.toggled-background: "#000000""##]),
+            not_allowed("color.button.toggled-background")
+        );
+        // A fixed token is refused as fixed, like in the theme.
+        assert_eq!(
+            style_rejection(&[r##"color.quit.background: "#000000""##]),
+            "invalid style on `styled`: theme token `color.quit.background` is fixed and cannot be changed by a template"
+        );
+        // An empty style says nothing, so the schema refuses it.
+        let err = style_rejection(&[]);
+        assert!(
+            err.contains("does not satisfy the schema at `/pages/0/components/0/style`"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_style_out_of_range_is_rejected_like_the_theme() {
+        let in_style = style_rejection(&[r#"size.button.min: "40px""#]);
+        let in_theme = theme_rejection(&[r#"size.button.min: "40px""#]);
+        assert_eq!(
+            in_style,
+            "invalid style on `styled`: theme token `size.button.min`: 40px is outside the allowed range 44px to 96px"
+        );
+        assert_eq!(
+            in_style.strip_prefix("invalid style on `styled`: "),
+            in_theme.strip_prefix("invalid theme: ")
+        );
+        // The other checks of the theme, the same way.
+        for entry in [
+            r##"color.button.nope: "#000000""##,
+            r#"color.button.text: "72px""#,
+            r##"color.button.text: "#fff""##,
+        ] {
+            let in_style = style_rejection(&[entry]);
+            let in_theme = theme_rejection(&[entry]);
+            assert_eq!(
+                in_style.strip_prefix("invalid style on `styled`: "),
+                in_theme.strip_prefix("invalid theme: "),
+                "{entry}"
+            );
+        }
+        // Its shape is the theme's too: no CSS reaches it.
+        let err = style_rejection(&[r#"color.button.text: "url(x)""#]);
+        assert!(
+            err.contains(
+                "does not satisfy the schema at `/pages/0/components/0/style/color.button.text`"
+            ),
+            "{err}"
+        );
+        let err = style_rejection(&[
+            r##"color.button.text: "#000000""##,
+            r##"color.button.background: "#000000""##,
+            r##"color.button.border: "#000000""##,
+            r##"color.button.pressed-background: "#000000""##,
+            r##"color.button.toggled-text: "#000000""##,
+        ]);
+        assert!(
+            err.contains("does not satisfy the schema at `/pages/0/components/0/style`"),
+            "{err}"
         );
     }
 }

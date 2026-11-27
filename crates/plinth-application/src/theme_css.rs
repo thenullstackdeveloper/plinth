@@ -2,7 +2,7 @@
 //! domain's typed values. Nothing a template wrote reaches the UI as text;
 //! only what is formatted here.
 
-use plinth_domain::{Theme, TokenPath, TokenValue};
+use plinth_domain::{Theme, ThemeOverrides, TokenPath, TokenValue};
 
 use crate::dto::ThemeVar;
 
@@ -37,10 +37,57 @@ pub fn theme_vars(theme: &Theme) -> Vec<ThemeVar> {
         .collect()
 }
 
+/// Only the tokens a button's `style` gives, as CSS custom properties in the
+/// order it gives them: set on the button, they win over the theme there.
+pub fn override_vars(overrides: &ThemeOverrides) -> Vec<ThemeVar> {
+    overrides
+        .iter()
+        .map(|(path, value)| ThemeVar {
+            name: css_variable(path),
+            value: css_value(value),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use plinth_domain::{Hundredths, Srgb8};
+    use plinth_domain::{Hundredths, Srgb8, ThemeCatalog, TokenRule, TokenSpec};
+
+    #[test]
+    fn override_vars_writes_only_the_given_tokens() {
+        let colour = |r, g, b| TokenValue::Color(Srgb8 { r, g, b });
+        let spec = |path: &str| TokenSpec {
+            path: TokenPath::new(path).unwrap(),
+            default: colour(38, 42, 59),
+            themeable: true,
+            rule: TokenRule::Any,
+        };
+        let catalog = ThemeCatalog::new(vec![
+            spec("color.button.background"),
+            spec("color.button.text"),
+            spec("color.button.border"),
+        ])
+        .unwrap();
+        let style = catalog
+            .resolve_partial(vec![
+                ("color.button.text".into(), colour(0xFF, 0xFF, 0xFF)),
+                ("color.button.background".into(), colour(0x7A, 0x1F, 0x2B)),
+            ])
+            .unwrap();
+        let var = |name: &str, value: &str| ThemeVar {
+            name: name.into(),
+            value: value.into(),
+        };
+        assert_eq!(
+            override_vars(&style),
+            vec![
+                var("--plinth-color-button-text", "#ffffff"),
+                var("--plinth-color-button-background", "#7a1f2b"),
+            ]
+        );
+        assert_eq!(override_vars(&ThemeOverrides::default()), vec![]);
+    }
 
     #[test]
     fn css_variable_maps_dots_to_dashes() {

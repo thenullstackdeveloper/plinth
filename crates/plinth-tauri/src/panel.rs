@@ -117,6 +117,10 @@ pub struct ComponentDto {
     /// when it is shown.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub hide_label: bool,
+    /// The button's own colours: CSS custom property → value, like `theme`,
+    /// with only the tokens its `style` gives. Left out when it has none.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub style: BTreeMap<String, String>,
 }
 
 pub struct Panel<I, P, C, S>
@@ -337,6 +341,11 @@ where
             image_id: view.image_id,
             icon_id: view.icon_id,
             hide_label: view.hide_label,
+            style: view
+                .style
+                .into_iter()
+                .map(|var| (var.name, var.value))
+                .collect(),
         }
     }
 }
@@ -1075,5 +1084,25 @@ mod tests {
         let plain = serde_json::to_value(panel_with(WOW_DEMO_TEMPLATE).render()).unwrap();
         assert!(plain["pages"][0].get("backgroundId").is_none(), "{plain}");
         let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn the_view_carries_a_button_style() {
+        let yaml = "schema_version: \"1\"\nmetadata: { game: WoW, version: \"1\", author: dev }\npages:\n  - components:\n      - { id: styled, position: { row: 0, col: 0 }, keys: \"m\", style: { color.button.background: \"#7A1F2B\", color.button.text: \"#ffffff\" } }\n      - { id: plain, position: { row: 0, col: 1 }, keys: \"m\" }\nsidebar: { default_side: right, components: [] }\ntheme:\n  color.button.background: \"#1e1e2e\"\n";
+        let json = serde_json::to_value(panel_with(yaml).render()).unwrap();
+
+        // Only the tokens the style gives, written as CSS like the theme.
+        let styled = &json["pages"][0]["components"][0];
+        assert_eq!(
+            styled["style"],
+            serde_json::json!({
+                "--plinth-color-button-background": "#7a1f2b",
+                "--plinth-color-button-text": "#ffffff",
+            })
+        );
+        // A button without one has no `style` at all, and the theme stays.
+        let plain = &json["pages"][0]["components"][1];
+        assert!(plain.get("style").is_none(), "{plain}");
+        assert_eq!(json["theme"]["--plinth-color-button-background"], "#1e1e2e");
     }
 }

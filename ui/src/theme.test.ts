@@ -28,3 +28,18 @@ test("themeStyle drops values that could carry CSS", () => {
   });
   expect(style).toEqual({ "--plinth-ok": "#1e1e2e" });
 });
+
+test("themeStyle applies a button's own variables", () => {
+  // Only the tokens the button's `style` gives, through the same barrier as the theme.
+  const own = {
+    "--plinth-color-button-background": "#7a1f2b",
+    "--plinth-color-button-text": "#ffffff",
+    "--plinth-color-button-border": "url(x)",
+  };
+  expect(themeStyle(own)).toEqual({
+    "--plinth-color-button-background": "#7a1f2b",
+    "--plinth-color-button-text": "#ffffff",
+  });
+  // Nothing reaches the button that the barrier would not let through on `.panel`.
+  expect(themeStyle({ "--plinth-color-button-text": "var(--plinth-color-quit-text)", "--evil": "#000000" })).toEqual({});
+});
