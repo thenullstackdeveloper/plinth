@@ -103,3 +103,28 @@ fn the_installed_program_is_named_plinth() {
         "the installed executable, and the name Task Manager shows, is Plinth.exe"
     );
 }
+
+/// The window's Content Security Policy: only the app's own scripts, styles
+/// and `data:` images, and no network beyond the IPC bridge.
+const CSP: &str = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; \
+script-src 'self'; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; \
+base-uri 'none'; form-action 'none'";
+
+/// The same policy in development, plus the Vite hot-reload socket.
+const DEV_CSP: &str =
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; \
+script-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:5173; \
+object-src 'none'; base-uri 'none'; form-action 'none'";
+
+#[test]
+fn the_window_has_a_csp_that_blocks_the_network() {
+    let security = &tauri_conf()["app"]["security"];
+    assert_eq!(security["csp"], json!(CSP));
+    assert_eq!(security["devCsp"], json!(DEV_CSP));
+    assert_eq!(
+        security["dangerousDisableAssetCspModification"],
+        json!(["style-src"]),
+        "Tauri must not add hashes to `style-src`: they would void the \
+         'unsafe-inline' that Motion's runtime <style> needs"
+    );
+}
