@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useRef } from "react";
+import { type CSSProperties, useRef } from "react";
 
-import type { ComponentDto, NavDirection } from "../adapters/panelApi";
+import type { ComponentDto, NavDirection, TemplateImages } from "../adapters/panelApi";
 import { createDragGuard } from "../dragGuard";
 import { pageTransition, snapBack } from "../motion";
 import { usePanelStore } from "../store/panelStore";
@@ -17,6 +17,50 @@ const pageVariants = {
   center: { transform: "translateX(0%)", opacity: 1 },
   exit: (dir: number) => ({ transform: `translateX(${-dir * 100}%)`, opacity: 0 }),
 };
+
+/** The URI of image `id`, only if the table has it: the store kept only the URIs `safeImageSrc` lets through. */
+function imageOf(images: TemplateImages, id: string | undefined): string | null {
+  return id !== undefined && Object.hasOwn(images, id) ? images[id] : null;
+}
+
+/**
+ * A panel button, on a page or in the sidebar, and what it shows: an image
+ * filling its face (only where `allowImage`, the pages) or an icon next to
+ * its label, and the label, seen or hidden. The images are decorative, so
+ * `label` is always the button's name, even when it is hidden from view.
+ */
+export function PanelButton(props: {
+  component: ComponentDto;
+  /** The button's name, shown unless the component hides it. */
+  label: string;
+  allowImage: boolean;
+  pressed?: boolean;
+  style?: CSSProperties;
+  onClick: () => void;
+}) {
+  const images = usePanelStore((s) => s.images);
+  const { component } = props;
+  const image = props.allowImage ? imageOf(images, component.imageId) : null;
+  // An icon or an image, never both: Rust refuses a template with both.
+  const icon = image === null ? imageOf(images, component.iconId) : null;
+  const className = ["plinth-button", image !== null && "plinth-button--image", icon !== null && "plinth-button--icon"]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <button
+      type="button"
+      className={className}
+      data-app-action={component.appAction ?? undefined}
+      aria-pressed={props.pressed}
+      style={props.style}
+      onClick={props.onClick}
+    >
+      {image !== null && <img className="plinth-button__image" src={image} alt="" draggable={false} />}
+      {icon !== null && <img className="plinth-button__icon" src={icon} alt="" draggable={false} />}
+      <span className={component.hideLabel === true ? "plinth-visually-hidden" : "plinth-button__label"}>{props.label}</span>
+    </button>
+  );
+}
 
 /**
  * One page of buttons. The outer element animates the page change with a
@@ -36,7 +80,6 @@ export function PageView(props: {
 }) {
   const press = usePanelStore((s) => s.press);
   const navigate = usePanelStore((s) => s.navigate);
-  const images = usePanelStore((s) => s.images);
   const sectionRef = useRef<HTMLElement>(null);
   const guard = useRef(createDragGuard()).current;
   const dir = props.direction === "prev" ? -1 : 1;
@@ -71,27 +114,18 @@ export function PageView(props: {
               handleSwipeEnd(info, sectionRef.current?.getBoundingClientRect().width ?? 0, props.locked, (d) => void navigate(d));
             }}
           >
-            {props.components.map((component) => {
-              // Only an id the table has; the store kept only the URIs `safeImageSrc` lets through.
-              const id = component.imageId;
-              const image = id !== undefined && Object.hasOwn(images, id) ? images[id] : null;
-              return (
-                <button
-                  key={component.id}
-                  type="button"
-                  className={image === null ? "plinth-button" : "plinth-button plinth-button--image"}
-                  data-app-action={component.appAction ?? undefined}
-                  style={{ gridRow: component.row + 1, gridColumn: component.col + 1 }}
-                  onClick={() => {
-                    if (!guard.shouldIgnoreClick()) void press(component.id);
-                  }}
-                >
-                  {/* Decorative: the label stays the button's name. */}
-                  {image !== null && <img className="plinth-button__image" src={image} alt="" draggable={false} />}
-                  <span className="plinth-button__label">{component.label ?? component.id}</span>
-                </button>
-              );
-            })}
+            {props.components.map((component) => (
+              <PanelButton
+                key={component.id}
+                component={component}
+                label={component.label ?? component.id}
+                allowImage
+                style={{ gridRow: component.row + 1, gridColumn: component.col + 1 }}
+                onClick={() => {
+                  if (!guard.shouldIgnoreClick()) void press(component.id);
+                }}
+              />
+            ))}
           </motion.div>
         </motion.div>
       </AnimatePresence>

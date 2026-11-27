@@ -192,11 +192,15 @@ pub struct ComponentPosition {
 }
 
 /// Purely visual properties of a component (label, icon, image…). The domain
-/// does not interpret them; it carries them to the UI via the DTO.
+/// does not interpret them; it carries them to the UI via the DTO. Where each
+/// one may be used is a rule of `Template`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VisualProps {
     pub label: Option<String>,
-    pub icon: Option<String>,
+    /// A small image next to the label, or alone with `hide_label`.
+    pub icon: Option<ImageRef>,
     /// An image that fills the face of the button.
     pub image: Option<ImageRef>,
+    /// The label is hidden from view but stays the button's accessible name.
+    pub hide_label: bool,
 }

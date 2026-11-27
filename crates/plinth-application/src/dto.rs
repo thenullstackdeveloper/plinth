@@ -25,10 +25,14 @@ pub struct ComponentView {
     pub row: u16,
     pub col: u16,
     pub label: Option<String>,
-    pub icon: Option<String>,
+    /// The icon next to the label, as an id of the template's images like
+    /// `image_id`.
+    pub icon_id: Option<String>,
     /// The image that fills the button, as `t<generation>i<index>`: an id of
     /// the template's images, never their bytes.
     pub image_id: Option<String>,
+    /// The label is hidden from view; it stays the button's name.
+    pub hide_label: bool,
     pub action_kind: ActionKind,
     /// Toggle state (if applicable). The UI uses it for highlighting.
     pub toggled: bool,

@@ -4,7 +4,7 @@ import { type ComponentProps, useState } from "react";
 import { expect, mocked, waitFor } from "storybook/test";
 
 import { usePanelStore } from "../store/panelStore";
-import { component, inRow, viewWith, withImage } from "../testing/views";
+import { component, hidingLabel, inRow, viewWith, withIcon, withImage } from "../testing/views";
 import { PageView } from "./PageView";
 
 const worldMap = component("world_map", "World map");
@@ -213,5 +213,82 @@ export const ButtonImage: Story = {
     // An id the table does not have paints nothing.
     usePanelStore.setState({ images: {} });
     await waitFor(() => expect(canvasElement.querySelector("img")).toBeNull());
+  },
+};
+
+/** The first element of `selector` inside `parent`. */
+function partOf<T extends HTMLElement>(parent: HTMLElement, selector: string): T {
+  const el = parent.querySelector<T>(selector);
+  if (!el) throw new Error(`no ${selector}`);
+  return el;
+}
+
+const centreY = (r: DOMRect) => r.top + r.height / 2;
+const centreX = (r: DOMRect) => r.left + r.width / 2;
+
+export const IconAndLabel: Story = {
+  args: { components: [withIcon(worldMap, "t1i0")] },
+  beforeEach: () => {
+    usePanelStore.setState({ images: { t1i0: drawnPng() } });
+  },
+  play: async ({ canvas }) => {
+    const button = canvas.getByRole("button", { name: "World map" });
+    const icon = partOf<HTMLImageElement>(button, "img.plinth-button__icon");
+    await expect(icon.alt).toBe("");
+    await waitFor(() => expect(icon.naturalWidth).toBe(4));
+    const label = partOf(button, ".plinth-button__label");
+    await expect(label).toBeVisible();
+    // The icon to the left of the label, on the same line, both inside the button.
+    const [face, iconBox, text] = [button, icon, label].map((el) => el.getBoundingClientRect());
+    await expect(iconBox.width).toBeGreaterThan(0);
+    await expect(iconBox.right).toBeLessThanOrEqual(text.left);
+    await expect(centreY(iconBox)).toBeCloseTo(centreY(text), 0);
+    await expect(iconBox.left).toBeGreaterThanOrEqual(face.left);
+    await expect(text.right).toBeLessThanOrEqual(face.right);
+  },
+};
+
+export const IconOnly: Story = {
+  args: { components: [hidingLabel(withIcon(worldMap, "t1i0"))] },
+  beforeEach: () => {
+    usePanelStore.setState({ images: { t1i0: drawnPng() } });
+  },
+  play: async ({ canvas }) => {
+    // The label is no longer seen, but it is still the button's name.
+    const button = canvas.getByRole("button", { name: "World map" });
+    const hidden = partOf(button, ".plinth-visually-hidden");
+    await expect(hidden.textContent).toBe("World map");
+    await expect(getComputedStyle(hidden).clip).toBe("rect(0px, 0px, 0px, 0px)");
+    await expect(button.querySelector(".plinth-button__label")).toBeNull();
+    // The icon alone, in the middle of the button.
+    const icon = partOf<HTMLImageElement>(button, "img.plinth-button__icon");
+    await waitFor(() => expect(icon.naturalWidth).toBe(4));
+    const [face, box] = [button, icon].map((el) => el.getBoundingClientRect());
+    await expect(centreX(box)).toBeCloseTo(centreX(face), 0);
+    await expect(centreY(box)).toBeCloseTo(centreY(face), 0);
+  },
+};
+
+export const ImageWithLabel: Story = {
+  // An icon as well is refused by Rust; were one to come, the image wins.
+  args: { components: [withIcon(withImage(worldMap, "t1i0"), "t1i0")] },
+  beforeEach: () => {
+    usePanelStore.setState({ images: { t1i0: drawnPng() } });
+  },
+  play: async ({ canvas }) => {
+    const button = canvas.getByRole("button", { name: "World map" });
+    const image = partOf<HTMLImageElement>(button, "img.plinth-button__image");
+    await waitFor(() => expect(image.naturalWidth).toBe(4));
+    await expect(button.querySelectorAll("img")).toHaveLength(1);
+    // The label reads on a strip at the bottom of the face, over the image.
+    const label = partOf(button, ".plinth-button__label");
+    const [face, strip] = [image, label].map((el) => el.getBoundingClientRect());
+    await expect(strip.left).toBeCloseTo(face.left, 1);
+    await expect(strip.right).toBeCloseTo(face.right, 1);
+    await expect(strip.bottom).toBeCloseTo(face.bottom, 1);
+    await expect(strip.height).toBeLessThan(face.height);
+    const top = document.elementFromPoint(centreX(strip), centreY(strip));
+    await expect(top === label || label.contains(top)).toBe(true);
+    await expect(getComputedStyle(label).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   },
 };

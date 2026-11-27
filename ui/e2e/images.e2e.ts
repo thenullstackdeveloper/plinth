@@ -1,6 +1,6 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
-import { calls, emitPanelChanged, game, installFakeBackend } from "./fakeBackend";
+import { app, calls, emitPanelChanged, game, installFakeBackend } from "./fakeBackend";
 import { box } from "./gestures";
 
 /**
@@ -101,4 +101,67 @@ test("a webp button image renders", async ({ page }) => {
   const image = page.getByRole("button", { name: "Fireball" }).locator("img");
   await expect(image).toHaveAttribute("src", webp);
   await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(6);
+});
+
+test("icon_with_label_icon_alone_and_hidden_label", async ({ page }) => {
+  const icon = await drawnPng(page, 8);
+  await installFakeBackend(page, {
+    pages: [
+      [
+        { ...game("fireball", "Fireball", 0, 0), iconId: "t1i0" },
+        { ...game("frostbolt", "Frostbolt", 0, 1), iconId: "t1i0", hideLabel: true },
+        { ...game("bags", "Bags", 0, 2), hideLabel: true },
+      ],
+    ],
+    sidebar: [
+      { ...app("lock", "Lock", "toggle_lock", 0), iconId: "t1i0", hideLabel: true },
+      app("switch_side", "Switch side", "switch_sidebar", 1),
+      app("quit", "Quit", "quit", 2),
+    ],
+    images: { t1i0: icon },
+  });
+  await page.goto("/");
+  const centre = (b: { x: number; y: number; width: number; height: number }) => ({
+    x: b.x + b.width / 2,
+    y: b.y + b.height / 2,
+  });
+  const clip = (el: Locator) => el.evaluate((node) => getComputedStyle(node).clip);
+
+  // An icon with its label: the icon to the left, on the same line, both inside the button.
+  const fireball = page.getByRole("button", { name: "Fireball" });
+  const withLabel = fireball.locator("img");
+  await expect.poll(() => withLabel.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(8);
+  expect(await withLabel.getAttribute("alt")).toBe("");
+  const label = fireball.getByText("Fireball");
+  await expect(label).toBeVisible();
+  expect(await clip(label)).toBe("auto");
+  const [face, iconBox, text] = [await box(fireball), await box(withLabel), await box(label)];
+  expect(iconBox.width).toBeGreaterThan(0);
+  expect(iconBox.x + iconBox.width).toBeLessThanOrEqual(text.x);
+  expect(centre(iconBox).y).toBeCloseTo(centre(text).y, 0);
+  expect(iconBox.x).toBeGreaterThanOrEqual(face.x);
+  expect(text.x + text.width).toBeLessThanOrEqual(face.x + face.width);
+
+  // An icon alone: in the middle of the button, which keeps its name.
+  const frostbolt = page.getByRole("button", { name: "Frostbolt" });
+  await expect(frostbolt).toBeVisible();
+  const alone = frostbolt.locator("img");
+  await expect.poll(() => alone.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(8);
+  const [frostFace, aloneBox] = [await box(frostbolt), await box(alone)];
+  expect(centre(aloneBox).x).toBeCloseTo(centre(frostFace).x, 0);
+  expect(centre(aloneBox).y).toBeCloseTo(centre(frostFace).y, 0);
+  expect(await clip(frostbolt.getByText("Frostbolt"))).toBe("rect(0px, 0px, 0px, 0px)");
+
+  // A hidden label without an icon: nothing is seen, and the name stays.
+  const bags = page.getByRole("button", { name: "Bags" });
+  await expect(bags).toBeVisible();
+  await expect(bags.locator("img")).toHaveCount(0);
+  expect(await clip(bags.getByText("Bags"))).toBe("rect(0px, 0px, 0px, 0px)");
+
+  // The lock in the sidebar, as an icon alone: its hidden name still follows the lock.
+  const lock = page.getByRole("button", { name: "Lock" });
+  await expect(lock.locator("img")).toHaveCount(1);
+  expect(await clip(lock.getByText("Lock"))).toBe("rect(0px, 0px, 0px, 0px)");
+  await lock.click();
+  await expect(page.getByRole("button", { name: "Unlock" })).toHaveAttribute("aria-pressed", "true");
 });

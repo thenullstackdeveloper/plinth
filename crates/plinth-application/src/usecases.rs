@@ -239,8 +239,9 @@ pub fn query_render_state(
         row: c.position.row,
         col: c.position.col,
         label: c.visual.label.clone(),
-        icon: c.visual.icon.clone(),
+        icon_id: c.visual.icon.map(|icon| image_id(generation, icon)),
         image_id: c.visual.image.map(|image| image_id(generation, image)),
+        hide_label: c.visual.hide_label,
         action_kind: match c.action {
             Action::App(_) => ActionKind::App,
             Action::Game(_) => ActionKind::Game,

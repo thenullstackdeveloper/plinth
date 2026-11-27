@@ -11,8 +11,8 @@
 //! each value is parsed to the kind its token has in the `ThemeCatalog`, and
 //! the catalog decides what a template may change.
 //!
-//! An `image` is read from the template's folder with the safe read of
-//! `TemplateAssets`, checked by its header (`image_check`) against its
+//! An `image` or an `icon` is read from the template's folder with the safe
+//! read of `TemplateAssets`, checked by its header (`image_check`) against its
 //! extension and the limits of its use, and kept once per file. A template
 //! brings at most 64 distinct image files and 16 MiB between them.
 
@@ -21,9 +21,9 @@ use std::path::{Path, PathBuf};
 
 use plinth_application::{TemplateError, TemplateSource};
 use plinth_domain::{
-    Action, ActionCatalog, Component, ComponentId, ComponentPosition, DomainError, ImageAsset,
-    ImagePath, ImageRef, ImageUse, KeyMacro, Page, SchemaVersion, Sidebar, SidebarSide, Template,
-    TemplateMetadata, Theme, ThemeCatalog, TokenKind, TokenValue, VisualProps,
+    Action, ActionCatalog, AppAction, Component, ComponentId, ComponentPosition, DomainError,
+    ImageAsset, ImagePath, ImageRef, ImageUse, KeyMacro, Page, SchemaVersion, Sidebar, SidebarSide,
+    Template, TemplateMetadata, Theme, ThemeCatalog, TokenKind, TokenValue, VisualProps,
 };
 use serde_json::Value;
 
@@ -127,12 +127,22 @@ impl FsTemplateSource {
             "right" => SidebarSide::Right,
             other => return Err(TemplateError(format!("invalid sidebar side: {other}"))),
         };
-        let sidebar_comps = sidebar_node
+        let sidebar_nodes = sidebar_node
             .get("components")
             .and_then(Value::as_array)
-            .map(|c| self.map_components(c, images))
-            .transpose()?
+            .map(Vec::as_slice)
             .unwrap_or_default();
+        // The domain refuses `image` in the sidebar; `style` does not reach
+        // it yet, so it is refused here.
+        for node in sidebar_nodes {
+            if node.get("style").is_some() {
+                return Err(domain_err(DomainError::NotAllowedInSidebar {
+                    field: "style",
+                    component: str_field(node, "id")?,
+                }));
+            }
+        }
+        let sidebar_comps = self.map_components(sidebar_nodes, images)?;
         let sidebar = Sidebar {
             default_side,
             components: sidebar_comps,
@@ -201,14 +211,6 @@ impl FsTemplateSource {
             row: u16_field(pos, "row")?,
             col: u16_field(pos, "col")?,
         };
-        let image = opt_str(node, "image")
-            .map(|raw| images.load(&raw, ImageUse::ButtonImage))
-            .transpose()?;
-        let visual = VisualProps {
-            label: opt_str(node, "label"),
-            icon: opt_str(node, "icon"),
-            image,
-        };
         let action = match node.get("keys") {
             Some(keys) => Action::Keys(map_keys(keys)?),
             None => {
@@ -216,6 +218,26 @@ impl FsTemplateSource {
                 let action_raw = str_field(node, "action")?;
                 self.catalog.resolve(&action_raw).map_err(domain_err)?
             }
+        };
+        // The domain refuses the other looks on the quit button; `style`
+        // does not reach it yet, so it is refused here.
+        if matches!(action, Action::App(AppAction::Quit)) && node.get("style").is_some() {
+            return Err(domain_err(DomainError::NotAllowedOnQuit { field: "style" }));
+        }
+        let image = opt_str(node, "image")
+            .map(|raw| images.load(&raw, ImageUse::ButtonImage))
+            .transpose()?;
+        let icon = opt_str(node, "icon")
+            .map(|raw| images.load(&raw, ImageUse::Icon))
+            .transpose()?;
+        let visual = VisualProps {
+            label: opt_str(node, "label"),
+            icon,
+            image,
+            hide_label: node
+                .get("hide_label")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
         };
 
         Ok(Component {
@@ -1085,6 +1107,211 @@ sidebar: {{ default_side: right, components: [] }}
         assert_eq!(
             err.0,
             "a single-file template cannot reference images; put it in a folder with template.yaml"
+        );
+    }
+    // --- Icons, hidden labels, and where each look is allowed ---
+
+    /// A PNG of `width` × `height` with no pixels: the loader only reads the
+    /// header, so it can claim any size and stay a few bytes long.
+    fn png_head(width: u32, height: u32) -> Vec<u8> {
+        use crate::image_check::test_images::{chunk, ihdr, png_from};
+        png_from(&[ihdr(width, height), chunk(b"IEND", &[])])
+    }
+
+    fn load_in(folder: &Path, yaml: String) -> Result<Template, String> {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        src.load_package(&folder_package(folder, yaml))
+            .map_err(|e| e.0)
+    }
+
+    /// `with_component` for a button that sends `m`, plus `extra` lines.
+    fn keys_button(extra: &[&str]) -> String {
+        let lines: String = extra
+            .iter()
+            .map(|line| format!("\n        {line}"))
+            .collect();
+        with_component(&format!("keys: \"m\"{lines}"))
+    }
+
+    #[test]
+    fn icon_and_image_together_are_rejected() {
+        let folder = image_folder("icon-with-image", &[("x.png", png_head(3, 2))]);
+
+        let err = load_in(
+            &folder,
+            keys_button(&[r#"icon: "x.png""#, r#"image: "x.png""#]),
+        )
+        .expect_err("an icon and an image on one button");
+        assert!(
+            err.contains("does not satisfy the schema at `/pages/0/components/0`"),
+            "{err}"
+        );
+
+        // Behind the schema, the domain refuses it too.
+        let alone = load_in(&folder, keys_button(&[r#"icon: "x.png""#])).unwrap();
+        let mut both = alone.pages()[0].components()[0].clone();
+        assert_eq!(both.visual.icon, Some(ImageRef(0)));
+        both.visual.image = both.visual.icon;
+        let err = Template::new(
+            alone.metadata().clone(),
+            vec![Page::new(vec![both]).unwrap()],
+            alone.sidebar().clone(),
+        )
+        .expect_err("the domain lets an icon and an image through");
+        assert_eq!(
+            err.to_string(),
+            "`btn` has both an icon and an image; a button shows one or the other"
+        );
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn an_icon_over_256_px_is_rejected() {
+        let kib = 1024;
+        let folder = image_folder(
+            "big-icon",
+            &[
+                ("ok.png", png_head(256, 256)),
+                ("wide.png", png_head(257, 1)),
+                ("tall.png", png_head(1, 257)),
+                ("full.png", png_of_len(256 * kib)),
+                ("heavy.png", png_of_len(256 * kib + 1)),
+            ],
+        );
+        let icon = |path: &str| keys_button(&[&format!("icon: \"{path}\"")]);
+
+        for fits in ["ok.png", "full.png"] {
+            let template = load_in(&folder, icon(fits)).unwrap_or_else(|e| panic!("{fits}: {e}"));
+            assert_eq!(
+                template.pages()[0].components()[0].visual.icon,
+                Some(ImageRef(0))
+            );
+        }
+        for (path, err) in [
+            (
+                "wide.png",
+                "`wide.png` is too large for an icon: 257x1 > 256x256",
+            ),
+            (
+                "tall.png",
+                "`tall.png` is too large for an icon: 1x257 > 256x256",
+            ),
+            (
+                "heavy.png",
+                "`heavy.png` is too large: 262145 bytes > 262144 bytes",
+            ),
+        ] {
+            assert_eq!(load_in(&folder, icon(path)).err().as_deref(), Some(err));
+        }
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn a_file_that_fits_a_button_image_is_too_large_for_an_icon() {
+        let folder = image_folder("two-uses", &[("img/a.png", png_head(300, 300))]);
+        let button = |id: &str, col: u16, look: &str| {
+            format!("      - {{ id: {id}, position: {{ row: 0, col: {col} }}, keys: \"m\", {look}: \"img/a.png\" }}\n")
+        };
+        let template = |buttons: String| {
+            format!(
+                "schema_version: \"1\"\nmetadata: {{ game: WoW, version: \"1\", author: dev }}\npages:\n  - components:\n{buttons}sidebar: {{ default_side: right, components: [] }}\n"
+            )
+        };
+
+        // As a button image it fits, on one button or two.
+        let images = template(button("one", 0, "image") + &button("two", 1, "image"));
+        assert_eq!(load_in(&folder, images).map(|t| t.images().len()), Ok(1));
+
+        // Already read for the image, the same file is no icon.
+        let mixed = template(button("one", 0, "image") + &button("two", 1, "icon"));
+        assert_eq!(
+            load_in(&folder, mixed).err().as_deref(),
+            Some("`img/a.png` is too large for an icon: 300x300 > 256x256")
+        );
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    /// The quit button on a page, with `extra` lines.
+    fn quit_button(extra: &str) -> String {
+        with_component(&format!("action: \"app.quit\"\n        {extra}"))
+    }
+
+    #[test]
+    fn quit_rejects_icon_image_style_and_hide_label() {
+        let folder = image_folder("quit", &[("x.png", png_head(3, 2))]);
+        // A plain quit button loads.
+        assert!(load_in(&folder, quit_button(r#"label: "Quit""#)).is_ok());
+
+        for (extra, field) in [
+            (r#"icon: "x.png""#, "icon"),
+            (r#"image: "x.png""#, "image"),
+            (
+                r##"style: { color.button.background: "#000000" }"##,
+                "style",
+            ),
+            ("hide_label: true", "hide_label"),
+        ] {
+            assert_eq!(
+                load_in(&folder, quit_button(extra)).err(),
+                Some(format!(
+                    "the quit button cannot have `{field}`, so it always looks the same"
+                )),
+                "{extra}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    /// `VALID` with the lock button of its sidebar carrying `extra`.
+    fn with_sidebar_lock(extra: &str) -> String {
+        VALID.replace(
+            "      action: \"app.toggle_lock\"\n",
+            &format!("      action: \"app.toggle_lock\"\n      {extra}\n"),
+        )
+    }
+
+    #[test]
+    fn the_sidebar_rejects_image() {
+        let folder = image_folder("sidebar", &[("x.png", png_head(3, 2))]);
+
+        // An icon alone, with its label hidden, is fine in the sidebar.
+        let icon = with_sidebar_lock("icon: \"x.png\"\n      hide_label: true");
+        let template = load_in(&folder, icon).unwrap();
+        let lock = &template.sidebar().components[0].visual;
+        assert_eq!(lock.icon, Some(ImageRef(0)));
+        assert!(lock.hide_label);
+
+        let image = with_sidebar_lock("image: \"x.png\"");
+        assert_eq!(
+            load_in(&folder, image).err().as_deref(),
+            Some("`lock` is in the sidebar, which does not allow `image`")
+        );
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn the_sidebar_rejects_style() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        // The same look on a page button loads.
+        let on_page = keys_button(&[r##"style: { color.button.background: "#000000" }"##]);
+        assert!(src.load_str(&on_page).is_ok());
+
+        let in_sidebar = with_sidebar_lock(r##"style: { color.button.background: "#000000" }"##);
+        assert_eq!(
+            src.load_str(&in_sidebar).err().map(|e| e.0).as_deref(),
+            Some("`lock` is in the sidebar, which does not allow `style`")
+        );
+    }
+
+    #[test]
+    fn a_text_icon_no_longer_loads() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let err = src
+            .load_str(&keys_button(&[r#"icon: "texto""#]))
+            .unwrap_err();
+        assert_eq!(
+            err.0,
+            "`texto` is not a valid image path: it must end in `.png` or `.webp`, in lower case"
         );
     }
 }

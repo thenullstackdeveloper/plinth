@@ -1,7 +1,8 @@
 import type { ComponentDto } from "../adapters/panelApi";
 import { usePanelStore } from "../store/panelStore";
+import { PanelButton } from "./PageView";
 
-/** The sidebar buttons. The lock button shows the action it will take. */
+/** The sidebar buttons, with an icon but never an image. The lock button shows the action it will take. */
 export function Sidebar(props: { components: ComponentDto[]; locked: boolean }) {
   const press = usePanelStore((s) => s.press);
 
@@ -11,16 +12,14 @@ export function Sidebar(props: { components: ComponentDto[]; locked: boolean }) 
         const isLock = component.appAction === "toggle_lock";
         const label = isLock ? (props.locked ? "Unlock" : "Lock") : (component.label ?? component.id);
         return (
-          <button
+          <PanelButton
             key={component.id}
-            type="button"
-            className="plinth-button"
-            data-app-action={component.appAction ?? undefined}
-            aria-pressed={isLock ? props.locked : undefined}
+            component={component}
+            label={label}
+            allowImage={false}
+            pressed={isLock ? props.locked : undefined}
             onClick={() => void press(component.id)}
-          >
-            <span className="plinth-button__label">{label}</span>
-          </button>
+          />
         );
       })}
     </aside>

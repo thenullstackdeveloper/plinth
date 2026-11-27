@@ -68,6 +68,7 @@
       "type": "object",
       "required": ["id", "position"],
       "oneOf": [{ "required": ["action"] }, { "required": ["keys"] }],
+      "not": { "required": ["icon", "image"] },
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "minLength": 1 },
@@ -98,12 +99,33 @@
           ]
         },
         "label": { "type": "string" },
-        "icon": { "type": "string" },
+        "icon": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 259,
+          "description": "A small PNG or WebP next to the label, or alone with hide_label: a path relative to the template's folder, like 'img/fire.png'. Not together with image, and not on the quit button."
+        },
+        "hide_label": {
+          "type": "boolean",
+          "description": "Hides the label from view; it stays the button's accessible name. Not on the quit button."
+        },
+        "style": {
+          "type": "object",
+          "description": "The button's own colours, as theme tokens. Not on the quit button.",
+          "maxProperties": 4,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*){1,3}$" },
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "string", "pattern": "^[#A-Za-z0-9.-]{1,32}$" },
+              { "type": "number" }
+            ]
+          }
+        },
         "image": {
           "type": "string",
           "minLength": 1,
           "maxLength": 259,
-          "description": "A PNG that fills the face of the button: a path relative to the template's folder, like 'img/fire.png'. Only a template in a folder (with a template.yaml) can reference images."
+          "description": "A PNG that fills the face of the button: a path relative to the template's folder, like 'img/fire.png'. Only a template in a folder (with a template.yaml) can reference images. Not together with icon, not in the sidebar and not on the quit button."
         }
       }
     }

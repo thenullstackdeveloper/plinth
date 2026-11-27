@@ -12,6 +12,10 @@ export type ComponentDto = {
   appAction: string | null;
   /** The image that fills the button: a key of `fetchTemplateImages()`. Absent when it has none. */
   imageId?: string;
+  /** The small image next to the label, or alone: a key of `fetchTemplateImages()` too. Absent when it has none. */
+  iconId?: string;
+  /** The label is hidden from view but stays the button's name. Absent when it is shown. */
+  hideLabel?: boolean;
 };
 
 /** Image id (`"t1i0"`) → `data:` URI, for the template on screen. */

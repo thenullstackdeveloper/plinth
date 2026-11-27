@@ -15,6 +15,16 @@ export function withImage(component: ComponentDto, imageId: string): ComponentDt
   return { ...component, imageId };
 }
 
+/** `component` with the icon of id `iconId`, a key of the store's `images`. */
+export function withIcon(component: ComponentDto, iconId: string): ComponentDto {
+  return { ...component, iconId };
+}
+
+/** `component` with its label hidden from view; it stays the button's name. */
+export function hidingLabel(component: ComponentDto): ComponentDto {
+  return { ...component, hideLabel: true };
+}
+
 /** An app component (sidebar button) for tests, in `row` of the sidebar. */
 export function appComponent(id: string, label: string, appAction: string, row = 0): ComponentDto {
   return { id, row, col: 0, label, actionKind: "app", appAction };

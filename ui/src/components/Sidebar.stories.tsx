@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { invoke } from "@tauri-apps/api/core";
-import { expect, mocked } from "storybook/test";
+import { expect, mocked, waitFor } from "storybook/test";
 
 import { usePanelStore } from "../store/panelStore";
 import sliceTheme from "../testing/fixtures/slice-theme.json";
 import { PanelFrame } from "../testing/PanelFrame";
-import { appComponent, viewWith } from "../testing/views";
+import { appComponent, hidingLabel, viewWith, withIcon, withImage } from "../testing/views";
 import { Sidebar } from "./Sidebar";
 
 const lock = appComponent("lock", "Lock", "toggle_lock");
@@ -152,5 +152,41 @@ export const LockToggledColours: Story = {
     await expect(coloursOf(canvasElement, "Unlock")).toEqual({ background: "rgb(224, 176, 92)", text: "rgb(21, 22, 30)" });
     // A button that is not toggled keeps the resting colours.
     await expect(coloursOf(canvasElement, "Switch side")).toEqual({ background: "rgb(38, 42, 59)", text: "rgb(230, 232, 240)" });
+  },
+};
+
+/** A 4×4 PNG drawn in the story's own browser, as the backend would send it. */
+function drawnPng(): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 4;
+  canvas.height = 4;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("no 2d context");
+  context.fillStyle = "#e0b05c";
+  context.fillRect(0, 0, 4, 4);
+  return canvas.toDataURL("image/png");
+}
+
+export const IconOnly: Story = {
+  // An image is never painted in the sidebar, even if one came.
+  args: { components: [hidingLabel(withIcon(lock, "t1i0")), withImage(switchSide, "t1i0"), quit], locked: true },
+  beforeEach: () => {
+    usePanelStore.setState({ images: { t1i0: drawnPng() } });
+  },
+  play: async ({ canvas }) => {
+    // The lock shows only its icon, and its name still says what it will do.
+    const button = canvas.getByRole("button", { name: "Unlock" });
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    const hidden = button.querySelector<HTMLElement>(".plinth-visually-hidden");
+    if (!hidden) throw new Error("no .plinth-visually-hidden");
+    await expect(getComputedStyle(hidden).clip).toBe("rect(0px, 0px, 0px, 0px)");
+    const icon = button.querySelector<HTMLImageElement>("img.plinth-button__icon");
+    if (!icon) throw new Error("no icon");
+    await expect(icon.alt).toBe("");
+    await waitFor(() => expect(icon.naturalWidth).toBe(4));
+    // A button without an icon keeps its label, and the sidebar paints no image.
+    const switchButton = canvas.getByRole("button", { name: "Switch side" });
+    await expect(switchButton.querySelector("img")).toBeNull();
+    await expect(switchButton.querySelector(".plinth-button__label")).toBeVisible();
   },
 };

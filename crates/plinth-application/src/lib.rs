@@ -56,6 +56,7 @@ mod tests {
                 label: Some(id.to_string()),
                 icon: None,
                 image: None,
+                hide_label: false,
             },
             action,
         }

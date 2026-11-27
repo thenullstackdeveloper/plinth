@@ -105,6 +105,14 @@ pub struct ComponentDto {
     /// the image itself. Left out when the button has none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_id: Option<String>,
+    /// The icon next to the label, a key of `template_images` too. Left out
+    /// when the button has none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_id: Option<String>,
+    /// The label is hidden from view but stays the button's name. Left out
+    /// when it is shown.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hide_label: bool,
 }
 
 pub struct Panel<I, P, C, S>
@@ -322,6 +330,8 @@ where
             },
             app_action,
             image_id: view.image_id,
+            icon_id: view.icon_id,
+            hide_label: view.hide_label,
         }
     }
 }
@@ -990,6 +1000,43 @@ mod tests {
             .switch_template("wow-demo.yaml", &single(WOW_DEMO_TEMPLATE))
             .unwrap();
         assert!(panel.template_images().is_empty());
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn the_view_carries_icon_ids_and_hidden_labels() {
+        let folder = image_folder(
+            "icons",
+            &[
+                ("icon.png", png_header(2, 2, 1)),
+                ("face.png", png_header(3, 1, 2)),
+            ],
+        );
+        let yaml = "schema_version: \"1\"\nmetadata: { game: WoW, version: \"1\", author: dev }\npages:\n  - components:\n      - { id: fire, position: { row: 0, col: 0 }, keys: \"m\", label: \"Fire\", icon: \"icon.png\", hide_label: true }\n      - { id: face, position: { row: 0, col: 1 }, keys: \"m\", image: \"face.png\" }\nsidebar:\n  default_side: right\n  components:\n    - { id: lock, position: { row: 0, col: 0 }, action: \"app.toggle_lock\", icon: \"icon.png\" }\n";
+        let panel = panel_of(
+            &folder_package(&folder, yaml.to_string()),
+            InMemoryConfigStore::default(),
+        );
+
+        let json = serde_json::to_value(panel.render()).unwrap();
+        let fire = &json["pages"][0]["components"][0];
+        assert_eq!(fire["iconId"], "t1i0");
+        assert_eq!(fire["hideLabel"], true);
+        assert!(fire.get("imageId").is_none(), "{fire}");
+        // A shown label and no icon are left out.
+        let face = &json["pages"][0]["components"][1];
+        assert_eq!(face["imageId"], "t1i1");
+        assert!(face.get("iconId").is_none(), "{face}");
+        assert!(face.get("hideLabel").is_none(), "{face}");
+        // The sidebar takes the icon too, by the same id.
+        let lock = &json["sidebar"][0];
+        assert_eq!(lock["iconId"], "t1i0");
+        assert!(lock.get("hideLabel").is_none(), "{lock}");
+        assert_eq!(
+            panel.template_images().into_keys().collect::<Vec<_>>(),
+            vec!["t1i0", "t1i1"]
+        );
+        assert!(!json.to_string().contains("data:"), "{json}");
         let _ = std::fs::remove_dir_all(folder);
     }
 }

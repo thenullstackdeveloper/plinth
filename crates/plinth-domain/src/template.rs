@@ -140,6 +140,24 @@ impl Template {
             }
         }
 
+        // Where each look is allowed: the quit button has none of its own,
+        // so no template can disguise it, and a sidebar button no image.
+        for component in pages
+            .iter()
+            .flat_map(|p| p.components())
+            .chain(sidebar.components.iter())
+        {
+            check_looks(component)?;
+        }
+        for component in &sidebar.components {
+            if component.visual.image.is_some() {
+                return Err(DomainError::NotAllowedInSidebar {
+                    field: "image",
+                    component: component.id.as_str().to_string(),
+                });
+            }
+        }
+
         // GoToPage references within range.
         let page_count = pages.len();
         for component in pages
@@ -181,7 +199,8 @@ impl Template {
             .iter()
             .flat_map(|p| p.components())
             .chain(self.sidebar.components.iter())
-            .filter_map(|c| c.visual.image);
+            .flat_map(|c| [c.visual.image, c.visual.icon])
+            .flatten();
         for image in refs {
             if image.0 >= images.len() {
                 return Err(DomainError::UnknownImage(image.0));
@@ -277,6 +296,29 @@ impl Page {
     }
 }
 
+/// A button shows an icon or an image, not both; the quit button shows
+/// neither, and always its label.
+fn check_looks(component: &Component) -> Result<(), DomainError> {
+    let visual = &component.visual;
+    if matches!(component.action, Action::App(AppAction::Quit)) {
+        for (field, used) in [
+            ("icon", visual.icon.is_some()),
+            ("image", visual.image.is_some()),
+            ("hide_label", visual.hide_label),
+        ] {
+            if used {
+                return Err(DomainError::NotAllowedOnQuit { field });
+            }
+        }
+    }
+    if visual.icon.is_some() && visual.image.is_some() {
+        return Err(DomainError::IconWithImage {
+            component: component.id.as_str().to_string(),
+        });
+    }
+    Ok(())
+}
+
 /// The room `count` buttons of `size` need in a line: the buttons, the gaps
 /// between them and the padding on both ends. `count` is at least 1.
 fn span(count: u32, size: u32, gap: u32, pad: u32) -> u32 {
@@ -295,5 +337,41 @@ fn fits(area: &'static str, needed: u32, available: u32) -> Result<(), DomainErr
             needed,
             available,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::image::ImageRef;
+
+    #[test]
+    fn with_images_rejects_an_icon_with_no_image() {
+        let button = |id: &str, icon: Option<ImageRef>| Component {
+            id: ComponentId::new(id),
+            position: ComponentPosition { row: 0, col: 0 },
+            visual: VisualProps {
+                icon,
+                ..VisualProps::default()
+            },
+            action: Action::App(AppAction::NextPage),
+        };
+        let metadata = TemplateMetadata {
+            game: "TestGame".into(),
+            version: "1".into(),
+            author: "dev".into(),
+            schema_version: SchemaVersion("1".into()),
+        };
+        let page = Page::new(vec![button("btn", None)]).unwrap();
+        let sidebar = Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![button("lock", Some(ImageRef(0)))],
+        };
+        let template = Template::new(metadata, vec![page], sidebar).unwrap();
+
+        assert_eq!(
+            template.with_images(Vec::new()),
+            Err(DomainError::UnknownImage(0))
+        );
     }
 }

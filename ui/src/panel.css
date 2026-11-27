@@ -153,6 +153,50 @@ body {
   background-color: color-mix(in srgb, var(--plinth-color-button-background) 75%, transparent);
 }
 
+/* A button with an icon: the icon to the left of the label, the two
+   centred together in the face. With the label hidden, the icon is alone in
+   the middle, and larger. */
+.plinth-button--icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+}
+
+.plinth-button__icon {
+  flex: none;
+  width: 1.5em;
+  height: 1.5em;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.plinth-button__icon:has(+ .plinth-visually-hidden) {
+  width: 2.5em;
+  height: 2.5em;
+}
+
+/* Next to an icon the label may shrink, so its ellipsis still cuts it. */
+.plinth-button--icon > .plinth-button__label {
+  min-width: 0;
+}
+
+/* Text kept for the button's name but not seen: `hide_label`. It is still
+   read out, and still names the button for a test or a screen reader. */
+.plinth-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* A label longer than its button is cut on one line with an ellipsis, so it
    never stretches the cell or spills out of it. */
 .plinth-button__label {

@@ -132,4 +132,21 @@ pub enum DomainError {
     /// A component points to an image the template does not have.
     #[error("image {0} is not one of the template's images")]
     UnknownImage(usize),
+
+    /// A button with both an `icon` and an `image`: it shows one or the
+    /// other.
+    #[error("`{component}` has both an icon and an image; a button shows one or the other")]
+    IconWithImage { component: String },
+
+    /// The quit button with a look of its own (`icon`, `image`, `style`,
+    /// `hide_label`), which could disguise it.
+    #[error("the quit button cannot have `{field}`, so it always looks the same")]
+    NotAllowedOnQuit { field: &'static str },
+
+    /// A sidebar button with something only a page button may have.
+    #[error("`{component}` is in the sidebar, which does not allow `{field}`")]
+    NotAllowedInSidebar {
+        field: &'static str,
+        component: String,
+    },
 }
