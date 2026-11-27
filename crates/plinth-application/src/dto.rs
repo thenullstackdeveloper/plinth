@@ -46,6 +46,9 @@ pub struct PageView {
     pub rows: u32,
     /// Grid columns: the largest component `col` plus one.
     pub cols: u32,
+    /// The background the page shows, its own or the template's default, as
+    /// an id of the template's images like `image_id`.
+    pub background_id: Option<String>,
 }
 
 /// One design token as a CSS custom property: `--plinth-color-button-background`

@@ -27,7 +27,9 @@ body {
 
 /* The sidebar and the page side by side; `data-side` only changes the order.
    The design tokens are set on .panel, and only feed properties that cannot
-   fetch anything (`background-color`, never the `background` shorthand). */
+   fetch anything (`background-color`, never the `background` shorthand).
+   The one `background-image` is a page's, set by PageView only from a URI
+   that passed `safeImageSrc`: a PNG or a WebP inlined as `data:`. */
 .panel {
   display: flex;
   flex: 1;
@@ -80,6 +82,14 @@ body {
   height: 100%;
 }
 
+/* The page's background, when it has one, covers the whole page, cropped to
+   it and never stretched, and slides with it. */
+.page-slide {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 /* The buttons in a grid of `row`/`col` cells (the tracks are set by PageView
    from the page's size), with the page's gap and padding from the design
    tokens. `border-box` keeps the padding inside the surface, so its box is
@@ -93,7 +103,8 @@ body {
 
 /* Every panel button, on a page or in the sidebar, styled from the design
    tokens set on .panel. Only properties that cannot fetch anything
-   (`background-color`, never the `background` shorthand). */
+   (`background-color`, never the `background` shorthand); a button's picture
+   is an <img>, never a `background-image`. */
 .plinth-button {
   background-color: var(--plinth-color-button-background);
   color: var(--plinth-color-button-text);

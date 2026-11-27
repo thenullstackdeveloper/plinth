@@ -86,6 +86,10 @@ pub struct PageViewDto {
     pub components: Vec<ComponentDto>,
     pub rows: u32,
     pub cols: u32,
+    /// The page's background, its own or the template's default: a key of
+    /// `template_images`. Left out when the page has none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -280,6 +284,7 @@ where
                     components: page.components.into_iter().map(dto).collect(),
                     rows: page.rows,
                     cols: page.cols,
+                    background_id: page.background_id,
                 })
                 .collect(),
             current_page: state.current_page,
@@ -1037,6 +1042,38 @@ mod tests {
             vec!["t1i0", "t1i1"]
         );
         assert!(!json.to_string().contains("data:"), "{json}");
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn the_view_carries_each_page_background_id() {
+        let folder = image_folder(
+            "backgrounds",
+            &[
+                ("root.png", png_header(4, 4, 1)),
+                ("own.png", png_header(5, 5, 2)),
+            ],
+        );
+        let yaml = "schema_version: \"1\"\nmetadata: { game: WoW, version: \"1\", author: dev }\nbackground: { image: \"root.png\" }\npages:\n  - components:\n      - { id: a, position: { row: 0, col: 0 }, keys: \"m\", image: \"own.png\" }\n  - background: { image: \"own.png\" }\n    components:\n      - { id: b, position: { row: 0, col: 0 }, keys: \"m\" }\nsidebar: { default_side: right, components: [] }\n";
+        let panel = panel_of(
+            &folder_package(&folder, yaml.to_string()),
+            InMemoryConfigStore::default(),
+        );
+
+        let json = serde_json::to_value(panel.render()).unwrap();
+        // The first page takes the default; the second, its own, by the
+        // same id as the button image of the same file.
+        assert_eq!(json["pages"][0]["backgroundId"], "t1i0");
+        assert_eq!(json["pages"][1]["backgroundId"], "t1i1");
+        assert_eq!(json["pages"][0]["components"][0]["imageId"], "t1i1");
+        assert_eq!(
+            panel.template_images().into_keys().collect::<Vec<_>>(),
+            vec!["t1i0", "t1i1"]
+        );
+        assert!(!json.to_string().contains("data:"), "{json}");
+        // A page with no background has no `backgroundId` at all.
+        let plain = serde_json::to_value(panel_with(WOW_DEMO_TEMPLATE).render()).unwrap();
+        assert!(plain["pages"][0].get("backgroundId").is_none(), "{plain}");
         let _ = std::fs::remove_dir_all(folder);
     }
 }

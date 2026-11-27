@@ -11,10 +11,11 @@
 //! each value is parsed to the kind its token has in the `ThemeCatalog`, and
 //! the catalog decides what a template may change.
 //!
-//! An `image` or an `icon` is read from the template's folder with the safe
-//! read of `TemplateAssets`, checked by its header (`image_check`) against its
-//! extension and the limits of its use, and kept once per file. A template
-//! brings at most 64 distinct image files and 16 MiB between them.
+//! An `image`, an `icon` or a page `background` is read from the template's
+//! folder with the safe read of `TemplateAssets`, checked by its header
+//! (`image_check`) against its extension and the limits of its use, and kept
+//! once per file. A template brings at most 64 distinct image files and
+//! 16 MiB between them.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -105,18 +106,26 @@ impl FsTemplateSource {
             schema_version: SchemaVersion(schema_version),
         };
 
+        // The default background first, then each page's own: the images
+        // are numbered in the order they are read.
+        let background = map_background(doc, images)?;
         let pages_node = doc
             .get("pages")
             .and_then(Value::as_array)
             .ok_or_else(|| TemplateError("missing `pages`".into()))?;
         let mut pages = Vec::with_capacity(pages_node.len());
         for page_node in pages_node {
+            let own = map_background(page_node, images)?;
             let comps = page_node
                 .get("components")
                 .and_then(Value::as_array)
                 .ok_or_else(|| TemplateError("a page has no `components`".into()))?;
             let components = self.map_components(comps, images)?;
-            pages.push(Page::new(components).map_err(domain_err)?);
+            pages.push(
+                Page::new(components)
+                    .map_err(domain_err)?
+                    .with_background(own),
+            );
         }
 
         let sidebar_node = doc
@@ -150,7 +159,12 @@ impl FsTemplateSource {
 
         let theme = self.map_theme(doc.get("theme"))?;
         Template::new(metadata, pages, sidebar)
-            .and_then(|template| template.with_theme(theme).with_images(images.finish()))
+            .and_then(|template| {
+                template
+                    .with_theme(theme)
+                    .with_background(background)
+                    .with_images(images.finish())
+            })
             .map_err(domain_err)
     }
 
@@ -362,6 +376,19 @@ impl<'a> ImageLoader<'a> {
     fn finish(&mut self) -> Vec<ImageAsset> {
         std::mem::take(&mut self.images)
     }
+}
+
+/// The `background` of `node` (the root or a page), read with the limits of
+/// a background, or `None` if it has none.
+fn map_background(
+    node: &Value,
+    images: &mut ImageLoader<'_>,
+) -> Result<Option<ImageRef>, TemplateError> {
+    node.get("background")
+        .and_then(|background| background.get("image"))
+        .and_then(Value::as_str)
+        .map(|raw| images.load(raw, ImageUse::Background))
+        .transpose()
 }
 
 fn format_mismatch(path: &ImagePath) -> TemplateError {
@@ -1301,6 +1328,157 @@ sidebar: {{ default_side: right, components: [] }}
             src.load_str(&in_sidebar).err().map(|e| e.0).as_deref(),
             Some("`lock` is in the sidebar, which does not allow `style`")
         );
+    }
+
+    // --- Page backgrounds ---
+
+    /// A template with one button per page: `root` is the default background,
+    /// `own[i]` the background of page `i`, and `extra` goes on every button.
+    fn with_backgrounds(root: Option<&str>, own: &[Option<&str>], extra: &str) -> String {
+        let background = |path: &str| format!("background: {{ image: \"{path}\" }}");
+        let pages: String = own
+            .iter()
+            .enumerate()
+            .map(|(i, path)| {
+                let first = path.map(|p| background(p) + "\n    ").unwrap_or_default();
+                format!(
+                    "  - {first}components:\n      - {{ id: b{i}, position: {{ row: 0, col: 0 }}, keys: \"m\"{extra} }}\n"
+                )
+            })
+            .collect();
+        let root = root.map(|p| background(p) + "\n").unwrap_or_default();
+        format!(
+            "schema_version: \"1\"\nmetadata: {{ game: WoW, version: \"1\", author: dev }}\n{root}pages:\n{pages}sidebar: {{ default_side: right, components: [] }}\n"
+        )
+    }
+
+    /// The path of the background page `index` shows, if any.
+    fn background_of(template: &Template, index: usize) -> Option<&str> {
+        template
+            .page_background(index)
+            .map(|image| template.images()[image.0].path.as_str())
+    }
+
+    #[test]
+    fn a_background_over_its_limits_is_rejected() {
+        let mib = 1024 * 1024;
+        let folder = image_folder(
+            "big-background",
+            &[
+                ("ok.png", png_head(2048, 2048)),
+                ("wide.png", png_head(2049, 1)),
+                ("tall.png", png_head(1, 2049)),
+                ("full.png", png_of_len(4 * mib)),
+                ("heavy.png", png_of_len(4 * mib + 1)),
+            ],
+        );
+
+        // Too large for a button image, but not for a background.
+        for fits in ["ok.png", "full.png"] {
+            let template = load_in(&folder, with_backgrounds(Some(fits), &[None], ""))
+                .unwrap_or_else(|e| panic!("{fits}: {e}"));
+            assert_eq!(background_of(&template, 0), Some(fits));
+        }
+        for (path, err) in [
+            (
+                "wide.png",
+                "`wide.png` is too large for a background: 2049x1 > 2048x2048",
+            ),
+            (
+                "tall.png",
+                "`tall.png` is too large for a background: 1x2049 > 2048x2048",
+            ),
+            (
+                "heavy.png",
+                "`heavy.png` is too large: 4194305 bytes > 4194304 bytes",
+            ),
+        ] {
+            // At the root and on a page alike.
+            let at_root = with_backgrounds(Some(path), &[None], "");
+            let on_page = with_backgrounds(None, &[Some(path)], "");
+            for yaml in [at_root, on_page] {
+                assert_eq!(load_in(&folder, yaml).err().as_deref(), Some(err));
+            }
+        }
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn a_page_background_wins_over_the_default() {
+        let folder = image_folder(
+            "own-background",
+            &[
+                ("root.png", png_head(4, 4)),
+                ("img/own.png", png_head(5, 5)),
+            ],
+        );
+
+        let yaml = with_backgrounds(Some("root.png"), &[None, Some("img/own.png"), None], "");
+        let template = load_in(&folder, yaml).unwrap();
+
+        assert_eq!(background_of(&template, 1), Some("img/own.png"));
+        // Only for its page: the others keep the default.
+        assert_eq!(background_of(&template, 0), Some("root.png"));
+        assert_eq!(background_of(&template, 2), Some("root.png"));
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn pages_without_their_own_background_take_the_default() {
+        let folder = image_folder(
+            "default-background",
+            &[("root.png", png_head(4, 4)), ("own.png", png_head(5, 5))],
+        );
+
+        let shared = load_in(
+            &folder,
+            with_backgrounds(Some("root.png"), &[None, None], ""),
+        )
+        .unwrap();
+        assert_eq!(background_of(&shared, 0), Some("root.png"));
+        assert_eq!(background_of(&shared, 1), Some("root.png"));
+        assert_eq!(shared.images().len(), 1);
+        // Past the last page there is no page, and no background.
+        assert_eq!(shared.page_background(2), None);
+
+        // With no default, a page without its own has none.
+        let no_default = load_in(
+            &folder,
+            with_backgrounds(None, &[Some("own.png"), None], ""),
+        )
+        .unwrap();
+        assert_eq!(background_of(&no_default, 0), Some("own.png"));
+        assert_eq!(no_default.page_background(1), None);
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn the_same_file_meets_the_limits_of_each_use() {
+        let folder = image_folder(
+            "background-and-image",
+            &[("img/big.png", png_head(1500, 1500))],
+        );
+        const TOO_LARGE: &str =
+            "`img/big.png` is too large for a button image: 1500x1500 > 1024x1024";
+        let image = r#", image: "img/big.png""#;
+
+        // As a background it fits, at the root and on a page, as one image.
+        let backgrounds = with_backgrounds(Some("img/big.png"), &[Some("img/big.png")], "");
+        let template = load_in(&folder, backgrounds).unwrap();
+        assert_eq!(template.images().len(), 1);
+        assert_eq!(template.page_background(0), Some(ImageRef(0)));
+
+        // Already read for the background, the same file is no button image…
+        for yaml in [
+            with_backgrounds(Some("img/big.png"), &[None], image),
+            with_backgrounds(None, &[Some("img/big.png")], image),
+        ] {
+            assert_eq!(load_in(&folder, yaml).err().as_deref(), Some(TOO_LARGE));
+        }
+        // …nor alone.
+        let alone = with_backgrounds(None, &[None], image);
+        assert_eq!(load_in(&folder, alone).err().as_deref(), Some(TOO_LARGE));
+        let _ = std::fs::remove_dir_all(folder);
     }
 
     #[test]

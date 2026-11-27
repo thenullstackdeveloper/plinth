@@ -253,12 +253,16 @@ pub fn query_render_state(
     let pages = template
         .pages()
         .iter()
-        .map(|p| {
+        .enumerate()
+        .map(|(index, p)| {
             let grid = p.grid_size();
             PageView {
                 components: p.components().iter().map(to_view).collect(),
                 rows: grid.rows,
                 cols: grid.cols,
+                background_id: template
+                    .page_background(index)
+                    .map(|background| image_id(generation, background)),
             }
         })
         .collect();

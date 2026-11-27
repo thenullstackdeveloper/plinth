@@ -292,3 +292,35 @@ export const ImageWithLabel: Story = {
     await expect(getComputedStyle(label).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
   },
 };
+
+export const PageBackground: Story = {
+  args: { components: [worldMap, component("bags", "Bags", { row: 0, col: 1 })], cols: 2 },
+  beforeEach: () => {
+    // The background Rust resolved for page 0: its own, or the template's default.
+    const view = viewWith([[worldMap]]);
+    view.pages[0].backgroundId = "t1i0";
+    usePanelStore.setState({ view, images: { t1i0: drawnPng() } });
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const uri = usePanelStore.getState().images.t1i0;
+    const slide = partOf(canvasElement, ".page-slide");
+    const style = getComputedStyle(slide);
+    await expect(style.backgroundImage).toBe(`url("${uri}")`);
+    await expect(style.backgroundSize).toBe("cover");
+    await expect(style.backgroundRepeat).toBe("no-repeat");
+    // It covers the whole page, and the buttons stay on it, with their names.
+    const [area, cover] = [partOf(canvasElement, ".page"), slide].map((el) => el.getBoundingClientRect());
+    await expect(cover.width).toBeCloseTo(area.width, 1);
+    await expect(cover.height).toBeCloseTo(area.height, 1);
+    await expect(canvas.getByRole("button", { name: "World map" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Bags" })).toBeVisible();
+    // A URI that is not a PNG or a WebP never becomes a background, even if
+    // it reached the table, nor does an id the table does not have.
+    usePanelStore.setState({ images: { t1i0: "data:image/svg+xml;base64,PHN2Zy8+" } });
+    await waitFor(() => expect(getComputedStyle(slide).backgroundImage).toBe("none"));
+    usePanelStore.setState({ images: { t1i0: uri } });
+    await waitFor(() => expect(getComputedStyle(slide).backgroundImage).toBe(`url("${uri}")`));
+    usePanelStore.setState({ images: {} });
+    await waitFor(() => expect(getComputedStyle(slide).backgroundImage).toBe("none"));
+  },
+};

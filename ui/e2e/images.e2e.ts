@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import { app, calls, emitPanelChanged, game, installFakeBackend } from "./fakeBackend";
-import { box } from "./gestures";
+import { blankPoint, box, swipe } from "./gestures";
 
 /**
  * A `size` × `size` image drawn by Chromium on the blank page the test starts
@@ -164,4 +164,42 @@ test("icon_with_label_icon_alone_and_hidden_label", async ({ page }) => {
   expect(await clip(lock.getByText("Lock"))).toBe("rect(0px, 0px, 0px, 0px)");
   await lock.click();
   await expect(page.getByRole("button", { name: "Unlock" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("each page shows its effective background", async ({ page }) => {
+  const [root, own] = [await drawnPng(page, 4), await drawnPng(page, 6)];
+  await installFakeBackend(page, {
+    pages: [[game("world_map", "World map", 0, 0)], [game("bags", "Bags", 0, 0)], [game("quest_log", "Quest log", 0, 0)]],
+    // As Rust resolves them: page 1 takes the template's default, page 2 its
+    // own, and page 3, with neither, none.
+    backgrounds: ["t1i0", "t1i1"],
+    images: { t1i0: root, t1i1: own },
+  });
+  await page.goto("/");
+  const slide = page.locator(".page-slide");
+  const background = () => slide.evaluate((el) => getComputedStyle(el).backgroundImage);
+
+  await expect(page.getByRole("button", { name: "World map" })).toBeVisible();
+  expect(await background()).toBe(`url("${root}")`);
+  expect(await slide.evaluate((el) => getComputedStyle(el).backgroundSize)).toBe("cover");
+  // It covers the page, not the sidebar, which keeps its opaque colour.
+  const [area, cover] = [await box(page.getByRole("region", { name: "Page" })), await box(slide)];
+  expect(cover).toEqual(area);
+  const sidebar = await page.locator(".sidebar").evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { image: style.backgroundImage, colour: style.backgroundColor };
+  });
+  expect(sidebar.image).toBe("none");
+  expect(sidebar.colour).toMatch(/^rgb\(/);
+
+  await swipe(page, await blankPoint(page), -400);
+  await expect(page.getByRole("button", { name: "Bags" })).toBeVisible();
+  // Once the leaving page is gone, the one on screen shows its own.
+  await expect(slide).toHaveCount(1);
+  expect(await background()).toBe(`url("${own}")`);
+
+  await swipe(page, await blankPoint(page), -400);
+  await expect(page.getByRole("button", { name: "Quest log" })).toBeVisible();
+  await expect(slide).toHaveCount(1);
+  expect(await background()).toBe("none");
 });

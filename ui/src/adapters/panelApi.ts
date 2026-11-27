@@ -29,6 +29,8 @@ export type PageDto = {
   components: ComponentDto[];
   rows: number;
   cols: number;
+  /** The page's background, its own or the template's default, resolved by Rust: a key of `fetchTemplateImages()`. Absent when it has none. */
+  backgroundId?: string;
 };
 
 export type RenderView = {

@@ -3,6 +3,7 @@ import { type CSSProperties, useRef } from "react";
 
 import type { ComponentDto, NavDirection, TemplateImages } from "../adapters/panelApi";
 import { createDragGuard } from "../dragGuard";
+import { safeImageSrc } from "../image";
 import { pageTransition, snapBack } from "../motion";
 import { usePanelStore } from "../store/panelStore";
 import { handleSwipeEnd } from "../swipe";
@@ -21,6 +22,15 @@ const pageVariants = {
 /** The URI of image `id`, only if the table has it: the store kept only the URIs `safeImageSrc` lets through. */
 function imageOf(images: TemplateImages, id: string | undefined): string | null {
   return id !== undefined && Object.hasOwn(images, id) ? images[id] : null;
+}
+
+/**
+ * The `background-image` of a page, built only from a URI that passes
+ * `safeImageSrc`, never from the template's text; nothing without one.
+ */
+function backgroundOf(uri: string | null): CSSProperties {
+  const safe = safeImageSrc(uri);
+  return safe === null ? {} : { backgroundImage: `url("${safe}")` };
 }
 
 /**
@@ -64,8 +74,10 @@ export function PanelButton(props: {
 
 /**
  * One page of buttons. The outer element animates the page change with a
- * transform string; the inner one is the draggable surface, because Motion's
- * drag moves `x` and a transform string on the same element would cancel it.
+ * transform string, and carries the page's background, so it slides with the
+ * page; the inner one is the draggable surface, because Motion's drag moves
+ * `x` and a transform string on the same element would cancel it. The
+ * background is the one Rust resolved for page `pageIndex` of the view.
  */
 export function PageView(props: {
   components: ComponentDto[];
@@ -80,6 +92,8 @@ export function PageView(props: {
 }) {
   const press = usePanelStore((s) => s.press);
   const navigate = usePanelStore((s) => s.navigate);
+  const images = usePanelStore((s) => s.images);
+  const backgroundId = usePanelStore((s) => s.view?.pages[props.pageIndex]?.backgroundId);
   const sectionRef = useRef<HTMLElement>(null);
   const guard = useRef(createDragGuard()).current;
   const dir = props.direction === "prev" ? -1 : 1;
@@ -98,6 +112,7 @@ export function PageView(props: {
           animate="center"
           exit="exit"
           transition={pageTransition(props.transitionMs)}
+          style={backgroundOf(imageOf(images, backgroundId))}
         >
           <motion.div
             className="page-surface"

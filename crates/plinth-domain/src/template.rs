@@ -6,7 +6,7 @@
 
 use crate::action::{Action, AppAction};
 use crate::error::DomainError;
-use crate::image::ImageAsset;
+use crate::image::{ImageAsset, ImageRef};
 use crate::key::{ComponentPosition, SchemaVersion, SidebarSide, VisualProps};
 use crate::theme::{GridSize, PanelSize, Theme, LAYOUT_TOKENS};
 
@@ -46,11 +46,20 @@ pub struct Component {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Page {
     components: Vec<Component>,
+    /// The page's own background, which replaces the template's default.
+    background: Option<ImageRef>,
 }
 
 impl Page {
     pub fn components(&self) -> &[Component] {
         &self.components
+    }
+
+    /// The same page with its own background, or none to take the
+    /// template's default.
+    pub fn with_background(mut self, background: Option<ImageRef>) -> Self {
+        self.background = background;
+        self
     }
 
     /// The rows and columns the page spans: its largest `row` and `col`, plus one.
@@ -87,6 +96,8 @@ pub struct Template {
     /// The images the components point to, by `ImageRef`. None until
     /// `with_images` gives them.
     images: Vec<ImageAsset>,
+    /// The background of every page that has none of its own.
+    background: Option<ImageRef>,
 }
 
 impl Template {
@@ -178,6 +189,7 @@ impl Template {
             sidebar,
             theme: Theme::default(),
             images: Vec::new(),
+            background: None,
         })
     }
 
@@ -191,8 +203,21 @@ impl Template {
         &self.theme
     }
 
-    /// The same template with the images its components point to. A
-    /// component whose `ImageRef` has no image in `images` is rejected.
+    /// The same template with the default background of its pages, or none.
+    pub fn with_background(mut self, background: Option<ImageRef>) -> Self {
+        self.background = background;
+        self
+    }
+
+    /// The background page `index` shows: its own, or else the template's
+    /// default. `None` for a page with neither, or past the last page.
+    pub fn page_background(&self, index: usize) -> Option<ImageRef> {
+        let page = self.pages.get(index)?;
+        page.background.or(self.background)
+    }
+
+    /// The same template with the images its components and backgrounds
+    /// point to. An `ImageRef` with no image in `images` is rejected.
     pub fn with_images(mut self, images: Vec<ImageAsset>) -> Result<Self, DomainError> {
         let refs = self
             .pages
@@ -200,6 +225,8 @@ impl Template {
             .flat_map(|p| p.components())
             .chain(self.sidebar.components.iter())
             .flat_map(|c| [c.visual.image, c.visual.icon])
+            .chain(self.pages.iter().map(|p| p.background))
+            .chain([self.background])
             .flatten();
         for image in refs {
             if image.0 >= images.len() {
@@ -292,7 +319,10 @@ impl Page {
             // own constructor.
             return Err(DomainError::EmptyTemplate);
         }
-        Ok(Self { components })
+        Ok(Self {
+            components,
+            background: None,
+        })
     }
 }
 
@@ -372,6 +402,43 @@ mod tests {
         assert_eq!(
             template.with_images(Vec::new()),
             Err(DomainError::UnknownImage(0))
+        );
+    }
+
+    #[test]
+    fn with_images_rejects_a_background_with_no_image() {
+        let metadata = TemplateMetadata {
+            game: "TestGame".into(),
+            version: "1".into(),
+            author: "dev".into(),
+            schema_version: SchemaVersion("1".into()),
+        };
+        let page = || {
+            Page::new(vec![Component {
+                id: ComponentId::new("btn"),
+                position: ComponentPosition { row: 0, col: 0 },
+                visual: VisualProps::default(),
+                action: Action::App(AppAction::NextPage),
+            }])
+            .unwrap()
+        };
+        let template = |page: Page| {
+            let sidebar = Sidebar {
+                default_side: SidebarSide::Right,
+                components: Vec::new(),
+            };
+            Template::new(metadata.clone(), vec![page], sidebar).unwrap()
+        };
+
+        let default = template(page()).with_background(Some(ImageRef(0)));
+        assert_eq!(
+            default.with_images(Vec::new()),
+            Err(DomainError::UnknownImage(0))
+        );
+        let own = template(page().with_background(Some(ImageRef(1))));
+        assert_eq!(
+            own.with_images(Vec::new()),
+            Err(DomainError::UnknownImage(1))
         );
     }
 }

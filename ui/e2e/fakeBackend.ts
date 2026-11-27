@@ -26,10 +26,14 @@ const SIDEBAR: ComponentDto[] = [
   app("quit", "Quit", "quit", 2),
 ];
 
-/** A page with its grid size, as Rust computes it: the largest `row` and `col` plus one. */
-function withGrid(components: ComponentDto[]): PageDto {
+/**
+ * A page with its grid size, as Rust computes it: the largest `row` and `col`
+ * plus one, and its `backgroundId` only when it has one.
+ */
+function withGrid(components: ComponentDto[], backgroundId?: string): PageDto {
   const span = (pick: (c: ComponentDto) => number) => Math.max(0, ...components.map((c) => pick(c) + 1));
-  return { components, rows: span((c) => c.row), cols: span((c) => c.col) };
+  const grid = { components, rows: span((c) => c.row), cols: span((c) => c.col) };
+  return backgroundId === undefined ? grid : { ...grid, backgroundId };
 }
 
 export type FakeOptions = {
@@ -44,6 +48,8 @@ export type FakeOptions = {
   failPress?: { componentId: string; error: string };
   /** What `template_images` answers: image id → `data:` URI. None when absent. */
   images?: TemplateImages;
+  /** The `backgroundId` of each page, by index, already resolved as Rust does; no background when absent. */
+  backgrounds?: (string | undefined)[];
 };
 
 /** What the backend holds of its template, and changes on `emitPanelChanged`. */
@@ -52,7 +58,7 @@ type TemplateData = { pages: PageDto[]; sidebar: ComponentDto[]; theme: ThemeVar
 /** `options` as the page gets them, with the defaults filled in and the grids computed. */
 function templateData(options: FakeOptions): TemplateData {
   return {
-    pages: (options.pages ?? DEFAULT_PAGES).map(withGrid),
+    pages: (options.pages ?? DEFAULT_PAGES).map((components, i) => withGrid(components, options.backgrounds?.[i])),
     sidebar: options.sidebar ?? SIDEBAR,
     theme: options.theme ?? defaultTheme,
     images: options.images ?? {},
