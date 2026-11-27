@@ -4,21 +4,27 @@ import { calls, emitPanelChanged, game, installFakeBackend } from "./fakeBackend
 import { box } from "./gestures";
 
 /**
- * A `size` × `size` PNG drawn by Chromium on the blank page the test starts
- * on, before the panel loads: what Rust would send as a `data:` URI.
+ * A `size` × `size` image drawn by Chromium on the blank page the test starts
+ * on, before the panel loads: what Rust would send as a `data:` URI. A WebP
+ * at quality 1 is lossless.
  */
-async function drawnPng(page: Page, size: number): Promise<string> {
-  return page.evaluate((side) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = side;
-    canvas.height = side;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("no 2d context");
-    context.fillStyle = "#c0392b";
-    context.fillRect(0, 0, side, side);
-    return canvas.toDataURL("image/png");
-  }, size);
+async function drawnImage(page: Page, size: number, type: "image/png" | "image/webp"): Promise<string> {
+  return page.evaluate(
+    ([side, format]) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = side;
+      canvas.height = side;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("no 2d context");
+      context.fillStyle = "#c0392b";
+      context.fillRect(0, 0, side, side);
+      return canvas.toDataURL(format, 1);
+    },
+    [size, type] as const,
+  );
 }
+
+const drawnPng = (page: Page, size: number) => drawnImage(page, size, "image/png");
 
 test("a button image fills the button and keeps its name", async ({ page }) => {
   const png = await drawnPng(page, 8);
@@ -80,4 +86,19 @@ test("the panel asks for the template images once at start and after a template 
   expect(after.filter((cmd) => cmd === "template_images")).toHaveLength(1);
   expect(after.filter((cmd) => cmd === "render_state")).toHaveLength(1);
   expect(after.indexOf("template_images")).toBeLessThan(after.indexOf("render_state"));
+});
+
+test("a webp button image renders", async ({ page }) => {
+  const webp = await drawnImage(page, 6, "image/webp");
+  // Chromium falls back to PNG for a format it cannot write.
+  expect(webp).toMatch(/^data:image\/webp;base64,/);
+  await installFakeBackend(page, {
+    pages: [[{ ...game("fireball", "Fireball", 0, 0), imageId: "t1i0" }]],
+    images: { t1i0: webp },
+  });
+  await page.goto("/");
+
+  const image = page.getByRole("button", { name: "Fireball" }).locator("img");
+  await expect(image).toHaveAttribute("src", webp);
+  await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(6);
 });

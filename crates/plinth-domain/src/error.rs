@@ -124,6 +124,11 @@ pub enum DomainError {
         limit: String,
     },
 
+    /// A template whose distinct image files are more than 64, or more than
+    /// 16 MiB between them. `files` and `bytes` are what it reached.
+    #[error("the template's images exceed 64 files or 16 MiB")]
+    TemplateAssetsTooLarge { files: usize, bytes: u64 },
+
     /// A component points to an image the template does not have.
     #[error("image {0} is not one of the template's images")]
     UnknownImage(usize),

@@ -13,10 +13,11 @@
 //!
 //! An `image` is read from the template's folder with the safe read of
 //! `TemplateAssets`, checked by its header (`image_check`) against its
-//! extension and the limits of its use, and kept once per path.
+//! extension and the limits of its use, and kept once per file. A template
+//! brings at most 64 distinct image files and 16 MiB between them.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use plinth_application::{TemplateError, TemplateSource};
 use plinth_domain::{
@@ -234,12 +235,22 @@ impl TemplateSource for FsTemplateSource {
     }
 }
 
+/// The most distinct image files a template may bring, and the most bytes
+/// between them. `template.yaml` does not count.
+const MAX_TEMPLATE_IMAGES: usize = 64;
+const MAX_TEMPLATE_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
+
 /// The images of one template, read as its components reference them: each
-/// path once, in order of first appearance, so its index is its `ImageRef`.
+/// file once, in order of first appearance, so its index is its `ImageRef`.
+/// A file is known by its canonical path, so two spellings of it (another
+/// case, on a disk that ignores it) are one image, and it counts once
+/// towards the template's limits.
 struct ImageLoader<'a> {
     assets: &'a TemplateAssets,
     images: Vec<ImageAsset>,
+    bytes: u64,
     by_path: HashMap<ImagePath, usize>,
+    by_file: HashMap<PathBuf, usize>,
 }
 
 impl<'a> ImageLoader<'a> {
@@ -247,32 +258,38 @@ impl<'a> ImageLoader<'a> {
         Self {
             assets,
             images: Vec::new(),
+            bytes: 0,
             by_path: HashMap::new(),
+            by_file: HashMap::new(),
         }
     }
 
     /// The image at `raw` for `use_`: read, checked against its extension
-    /// and the limits of `use_`, or the one already read for that path.
+    /// and the limits of `use_`, or the one already read for that file,
+    /// checked against the limits of `use_` too.
     fn load(&mut self, raw: &str, use_: ImageUse) -> Result<ImageRef, TemplateError> {
         let path = ImagePath::parse(raw).map_err(domain_err)?;
         if let Some(&index) = self.by_path.get(&path) {
-            self.images[index].check(use_).map_err(domain_err)?;
-            return Ok(ImageRef(index));
+            return self.reuse(index, use_);
         }
+        // The safe read goes first: a link is refused before its target can
+        // be recognised as a file already read.
         let bytes = self.assets.read(&path, use_.limits().max_bytes)?;
+        let file = self.canonical(&path)?;
+        if let Some(&index) = self.by_file.get(&file) {
+            self.by_path.insert(path, index);
+            return self.reuse(index, use_);
+        }
         let shown = path.as_str();
-        let info = inspect(&bytes).map_err(|e| {
-            let reason = match e {
-                ImageError::NotAnImage => "not an image",
-                ImageError::Malformed(reason) => reason,
-            };
-            TemplateError(format!("`{shown}` is not supported: {reason}"))
+        let info = inspect(&bytes).map_err(|e| match e {
+            // Bytes in no format Plinth reads are not what the extension says.
+            ImageError::NotAnImage => format_mismatch(&path),
+            ImageError::Malformed(reason) => {
+                TemplateError(format!("`{shown}` is not supported: {reason}"))
+            }
         })?;
         if info.kind != path.kind() {
-            return Err(TemplateError(format!(
-                "`{shown}` is not a {} file",
-                path.kind().name()
-            )));
+            return Err(format_mismatch(&path));
         }
         let asset = ImageAsset {
             path: path.clone(),
@@ -282,15 +299,55 @@ impl<'a> ImageLoader<'a> {
             bytes: bytes.into(),
         };
         asset.check(use_).map_err(domain_err)?;
+        let files = self.images.len() + 1;
+        let total = self
+            .bytes
+            .saturating_add(u64::try_from(asset.bytes.len()).unwrap_or(u64::MAX));
+        if files > MAX_TEMPLATE_IMAGES || total > MAX_TEMPLATE_IMAGE_BYTES {
+            return Err(domain_err(DomainError::TemplateAssetsTooLarge {
+                files,
+                bytes: total,
+            }));
+        }
         let index = self.images.len();
         self.images.push(asset);
+        self.bytes = total;
         self.by_path.insert(path, index);
+        self.by_file.insert(file, index);
         Ok(ImageRef(index))
+    }
+
+    /// An image already read, used again: it has to fit `use_` as well.
+    fn reuse(&self, index: usize, use_: ImageUse) -> Result<ImageRef, TemplateError> {
+        self.images[index].check(use_).map_err(domain_err)?;
+        Ok(ImageRef(index))
+    }
+
+    /// The canonical path of an image the safe read has just accepted.
+    fn canonical(&self, path: &ImagePath) -> Result<PathBuf, TemplateError> {
+        let TemplateAssets::Folder(root) = self.assets else {
+            return Err(TemplateError(format!(
+                "`{}` has no template folder",
+                path.as_str()
+            )));
+        };
+        let mut full = root.clone();
+        full.extend(path.parts());
+        full.canonicalize()
+            .map_err(|e| TemplateError(format!("`{}` could not be read: {e}", path.as_str())))
     }
 
     fn finish(&mut self) -> Vec<ImageAsset> {
         std::mem::take(&mut self.images)
     }
+}
+
+fn format_mismatch(path: &ImagePath) -> TemplateError {
+    TemplateError(format!(
+        "`{}` is not a {} file",
+        path.as_str(),
+        path.kind().name()
+    ))
 }
 
 /// `keys` is one step (a text) or a list of steps; the schema has already
@@ -825,7 +882,6 @@ sidebar: {{ default_side: right, components: [] }}
     // --- Images from a template folder ---
 
     use crate::image_check::test_images::png;
-    use std::path::PathBuf;
 
     /// A template folder of its own under the temp dir with `files` (path
     /// below it, bytes), unique to the test.
@@ -880,6 +936,142 @@ sidebar: {{ default_side: right, components: [] }}
             .unwrap_err();
 
         assert_eq!(err.0, "`x.webp` is not a webp file");
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn a_png_whose_bytes_are_no_image_is_a_format_mismatch() {
+        let folder = image_folder("no-image", &[("x.png", b"GIF89a\x01\x00\x01\x00".to_vec())]);
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let yaml = with_component("keys: \"m\"\n        image: \"x.png\"");
+
+        let err = src
+            .load_package(&folder_package(&folder, yaml))
+            .unwrap_err();
+
+        assert_eq!(err.0, "`x.png` is not a png file");
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    /// A template whose page has one button per path in `images`, ten to a
+    /// row: `b0` shows `images[0]`, and so on.
+    fn with_images(images: &[String]) -> String {
+        let components: String = images
+            .iter()
+            .enumerate()
+            .map(|(i, path)| {
+                format!(
+                    "      - {{ id: b{i}, position: {{ row: {}, col: {} }}, keys: \"m\", image: \"{path}\" }}\n",
+                    i / 10,
+                    i % 10
+                )
+            })
+            .collect();
+        format!(
+            "schema_version: \"1\"\nmetadata: {{ game: WoW, version: \"1\", author: dev }}\npages:\n  - components:\n{components}sidebar: {{ default_side: right, components: [] }}\n"
+        )
+    }
+
+    const TOO_MANY_IMAGES: &str = "the template's images exceed 64 files or 16 MiB";
+
+    #[test]
+    fn a_template_with_65_images_is_rejected() {
+        let files: Vec<(String, Vec<u8>)> =
+            (0..65).map(|i| (format!("p{i}.png"), png(1, 1))).collect();
+        let refs: Vec<(&str, Vec<u8>)> =
+            files.iter().map(|(p, b)| (p.as_str(), b.clone())).collect();
+        let folder = image_folder("65-images", &refs);
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let paths: Vec<String> = files.into_iter().map(|(p, _)| p).collect();
+
+        let sixty_four = src.load_package(&folder_package(&folder, with_images(&paths[..64])));
+        assert_eq!(
+            sixty_four.map(|t| t.images().len()).map_err(|e| e.0),
+            Ok(64)
+        );
+
+        let sixty_five = src.load_package(&folder_package(&folder, with_images(&paths)));
+        assert_eq!(
+            sixty_five.err().map(|e| e.0).as_deref(),
+            Some(TOO_MANY_IMAGES)
+        );
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    /// A valid 1 × 1 PNG of exactly `len` bytes, padded with a `tEXt` chunk.
+    fn png_of_len(len: usize) -> Vec<u8> {
+        use crate::image_check::test_images::{chunk, idat, ihdr, png_from};
+        let bare = png(1, 1).len();
+        let mut text = b"Comment\0".to_vec();
+        text.resize(len - bare - 12, b'x');
+        png_from(&[
+            ihdr(1, 1),
+            idat(1, 1),
+            chunk(b"tEXt", &text),
+            chunk(b"IEND", &[]),
+        ])
+    }
+
+    #[test]
+    fn a_template_over_16_mib_is_rejected() {
+        // The largest a button image may be: 16 of them are 16 MiB exactly.
+        let one_mib = png_of_len(1024 * 1024);
+        assert_eq!(one_mib.len(), 1024 * 1024);
+        let files: Vec<(String, Vec<u8>)> = (0..17)
+            .map(|i| (format!("big{i}.png"), one_mib.clone()))
+            .collect();
+        let refs: Vec<(&str, Vec<u8>)> =
+            files.iter().map(|(p, b)| (p.as_str(), b.clone())).collect();
+        let folder = image_folder("16-mib", &refs);
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let paths: Vec<String> = files.into_iter().map(|(p, _)| p).collect();
+
+        let sixteen = src.load_package(&folder_package(&folder, with_images(&paths[..16])));
+        assert_eq!(sixteen.map(|t| t.images().len()).map_err(|e| e.0), Ok(16));
+
+        let seventeen = src.load_package(&folder_package(&folder, with_images(&paths)));
+        assert_eq!(
+            seventeen.err().map(|e| e.0).as_deref(),
+            Some(TOO_MANY_IMAGES)
+        );
+        let _ = std::fs::remove_dir_all(folder);
+    }
+
+    #[test]
+    fn the_same_file_used_twice_counts_once() {
+        let mut files: Vec<(String, Vec<u8>)> =
+            (0..63).map(|i| (format!("p{i}.png"), png(1, 1))).collect();
+        files.push((
+            "img/dup.webp".into(),
+            include_bytes!("fixtures/lossless-3x2.webp").to_vec(),
+        ));
+        let refs: Vec<(&str, Vec<u8>)> =
+            files.iter().map(|(p, b)| (p.as_str(), b.clone())).collect();
+        let folder = image_folder("same-file", &refs);
+        // On a disk that ignores case (macOS, Windows) another spelling is the
+        // same file, and only its canonical path tells; elsewhere the same
+        // spelling twice is.
+        let again = if folder.join("img/Dup.webp").is_file() {
+            "img/Dup.webp"
+        } else {
+            "img/dup.webp"
+        };
+        let mut paths: Vec<String> = files.into_iter().map(|(p, _)| p).collect();
+        paths.push(again.into());
+        let src = FsTemplateSource::new(catalog()).unwrap();
+
+        // 65 buttons, 64 files.
+        let template = src
+            .load_package(&folder_package(&folder, with_images(&paths)))
+            .unwrap();
+
+        assert_eq!(template.images().len(), 64);
+        let components = template.pages()[0].components();
+        assert_eq!(components[63].visual.image, Some(ImageRef(63)));
+        assert_eq!(components[64].visual.image, Some(ImageRef(63)));
+        let webp = &template.images()[63];
+        assert_eq!(webp.kind, plinth_domain::ImageKind::Webp);
+        assert_eq!((webp.width, webp.height), (3, 2));
         let _ = std::fs::remove_dir_all(folder);
     }
 
