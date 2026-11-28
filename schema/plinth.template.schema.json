@@ -90,11 +90,14 @@
         "id": { "type": "string", "minLength": 1 },
         "position": {
           "type": "object",
+          "description": "The button's first cell, zero-based, and how many rows and columns it covers from there. Two buttons of a page cannot share a cell. Only a page button may span: in the sidebar row_span and col_span are refused, even when 1.",
           "required": ["row", "col"],
           "additionalProperties": false,
           "properties": {
             "row": { "type": "integer", "minimum": 0 },
-            "col": { "type": "integer", "minimum": 0 }
+            "col": { "type": "integer", "minimum": 0 },
+            "row_span": { "type": "integer", "minimum": 1, "maximum": 4, "description": "Rows the button covers; 1 when absent." },
+            "col_span": { "type": "integer", "minimum": 1, "maximum": 10, "description": "Columns the button covers; 1 when absent." }
           }
         },
         "action": {

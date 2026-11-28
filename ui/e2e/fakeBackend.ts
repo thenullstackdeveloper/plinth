@@ -8,6 +8,11 @@ export function game(id: string, label: string, row: number, col: number): Compo
   return { id, row, col, label, actionKind: "game", appAction: null };
 }
 
+/** `component` over `rowSpan` rows and `colSpan` columns from its cell, sent only when more than 1, as Rust does. */
+export function spanning(component: ComponentDto, rowSpan: number, colSpan: number): ComponentDto {
+  return { ...component, ...(rowSpan > 1 && { rowSpan }), ...(colSpan > 1 && { colSpan }) };
+}
+
 /** An app button (a sidebar one) in `row` of its column. */
 export function app(id: string, label: string, appAction: string, row: number): ComponentDto {
   return { id, row, col: 0, label, actionKind: "app", appAction };
@@ -27,12 +32,16 @@ const SIDEBAR: ComponentDto[] = [
 ];
 
 /**
- * A page with its grid size, as Rust computes it: the largest `row` and `col`
- * plus one, and its `backgroundId` only when it has one.
+ * A page with its grid size, as Rust computes it: the largest `row + rowSpan`
+ * and `col + colSpan`, and its `backgroundId` only when it has one.
  */
 function withGrid(components: ComponentDto[], backgroundId?: string): PageDto {
-  const span = (pick: (c: ComponentDto) => number) => Math.max(0, ...components.map((c) => pick(c) + 1));
-  const grid = { components, rows: span((c) => c.row), cols: span((c) => c.col) };
+  const end = (pick: (c: ComponentDto) => number) => Math.max(0, ...components.map(pick));
+  const grid = {
+    components,
+    rows: end((c) => c.row + (c.rowSpan ?? 1)),
+    cols: end((c) => c.col + (c.colSpan ?? 1)),
+  };
   return backgroundId === undefined ? grid : { ...grid, backgroundId };
 }
 

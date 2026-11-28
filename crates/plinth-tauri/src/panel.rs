@@ -99,6 +99,12 @@ pub struct ComponentDto {
     /// The component's cell, zero-based; the UI places it at `row + 1`.
     pub row: u16,
     pub col: u16,
+    /// The rows and the columns it covers from there. Each is left out when
+    /// it is 1, as in the sidebar.
+    #[serde(skip_serializing_if = "is_one")]
+    pub row_span: u16,
+    #[serde(skip_serializing_if = "is_one")]
+    pub col_span: u16,
     pub label: Option<String>,
     /// `"game"`, `"app"` or `"keys"`.
     pub action_kind: &'static str,
@@ -331,6 +337,8 @@ where
             id: view.id,
             row: view.row,
             col: view.col,
+            row_span: view.row_span,
+            col_span: view.col_span,
             label: view.label,
             action_kind: match view.action_kind {
                 ActionKind::Game => "game",
@@ -348,6 +356,11 @@ where
                 .collect(),
         }
     }
+}
+
+/// Whether a span is the one cell a button covers when it says nothing.
+fn is_one(span: &u16) -> bool {
+    *span == 1
 }
 
 /// The images of `template` as `data:` URIs, by the ids `render` gives them.
@@ -627,6 +640,34 @@ mod tests {
         let json = serde_json::to_value(&view).unwrap();
         assert_eq!(json["pages"][0]["rows"], 2);
         assert_eq!(json["pages"][0]["components"][4]["col"], 1);
+    }
+
+    #[test]
+    fn render_carries_spans() {
+        // A 2×1 button over rows 0–1 of column 0, and two of one cell.
+        let yaml = "schema_version: \"1\"\nmetadata: { game: WoW, version: \"1\", author: dev }\npages:\n  - components:\n      - { id: tall, position: { row: 0, col: 0, row_span: 2 }, keys: \"m\" }\n      - { id: wide, position: { row: 0, col: 1, col_span: 3 }, keys: \"m\" }\n      - { id: one, position: { row: 1, col: 1 }, keys: \"m\" }\nsidebar:\n  default_side: right\n  components:\n    - { id: lock, position: { row: 0, col: 0 }, action: \"app.toggle_lock\" }\n";
+        let view = panel_with(yaml).render();
+        let page = &view.pages[0];
+        assert_eq!((page.rows, page.cols), (2, 4));
+        let spans: Vec<(&str, u16, u16)> = page
+            .components
+            .iter()
+            .map(|c| (c.id.as_str(), c.row_span, c.col_span))
+            .collect();
+        assert_eq!(spans, vec![("tall", 2, 1), ("wide", 1, 3), ("one", 1, 1)]);
+        assert_eq!((view.sidebar[0].row_span, view.sidebar[0].col_span), (1, 1));
+
+        // A span of 1 is left out of the JSON, as the UI reads it.
+        let json = serde_json::to_value(&view).unwrap();
+        let components = &json["pages"][0]["components"];
+        assert_eq!(components[0]["rowSpan"], 2);
+        assert!(components[0].get("colSpan").is_none());
+        assert!(components[1].get("rowSpan").is_none());
+        assert_eq!(components[1]["colSpan"], 3);
+        for button in [&components[2], &json["sidebar"][0]] {
+            assert!(button.get("rowSpan").is_none(), "{button}");
+            assert!(button.get("colSpan").is_none(), "{button}");
+        }
     }
 
     #[test]

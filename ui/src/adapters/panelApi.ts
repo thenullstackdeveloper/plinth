@@ -6,6 +6,10 @@ export type ComponentDto = {
   /** The component's cell, zero-based. */
   row: number;
   col: number;
+  /** The rows it covers from `row`. Absent when it is 1, as in the sidebar. */
+  rowSpan?: number;
+  /** The columns it covers from `col`. Absent when it is 1, as in the sidebar. */
+  colSpan?: number;
   label: string | null;
   actionKind: "game" | "app" | "keys";
   /** The app action the component triggers (`"toggle_lock"`, …), or null for game and key buttons. */
@@ -26,7 +30,7 @@ export type TemplateImages = Record<string, string>;
 /** CSS custom property → value (`"--plinth-color-button-background"` → `"#262a3b"`), resolved by Rust. */
 export type ThemeVars = Record<string, string>;
 
-/** One page: its components and the size of its grid (the largest `row` and `col` plus one). */
+/** One page: its components and the size of its grid (the largest `row + rowSpan` and `col + colSpan`). */
 export type PageDto = {
   components: ComponentDto[];
   rows: number;

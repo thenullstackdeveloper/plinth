@@ -65,18 +65,22 @@ impl Page {
         self
     }
 
-    /// The rows and columns the page spans: its largest `row` and `col`, plus one.
+    /// The rows and columns the page spans: the largest `row + row_span` and
+    /// `col + col_span`, where its last buttons end.
     pub fn grid_size(&self) -> GridSize {
-        let span = |pick: fn(&Component) -> u16| {
+        let end = |pick: fn(&ComponentPosition) -> (u16, u16)| {
             self.components
                 .iter()
-                .map(|c| u32::from(pick(c)) + 1)
+                .map(|c| {
+                    let (start, span) = pick(&c.position);
+                    u32::from(start) + u32::from(span)
+                })
                 .max()
                 .unwrap_or(0)
         };
         GridSize {
-            rows: span(|c| c.position.row),
-            cols: span(|c| c.position.col),
+            rows: end(|p| (p.row, p.row_span)),
+            cols: end(|p| (p.col, p.col_span)),
         }
     }
 }
@@ -136,19 +140,19 @@ impl Template {
             }
         }
 
-        // One cell per button on a page. The sidebar is a column ordered by
-        // `row`, so it is not checked.
+        // No cell of a page under two buttons. The sidebar is a column
+        // ordered by `row`, so it is not checked.
         for (index, page) in pages.iter().enumerate() {
-            let mut cells = std::collections::BTreeMap::new();
-            for component in page.components() {
-                let cell = (component.position.row, component.position.col);
-                if let Some(first) = cells.insert(cell, &component.id) {
-                    return Err(DomainError::DuplicatePosition {
+            let components = page.components();
+            for (later, b) in components.iter().enumerate() {
+                if let Some(a) = components[..later]
+                    .iter()
+                    .find(|a| overlap(&a.position, &b.position))
+                {
+                    return Err(DomainError::CellsOverlap {
                         page: index,
-                        row: cell.0,
-                        col: cell.1,
-                        first: first.as_str().to_string(),
-                        second: component.id.as_str().to_string(),
+                        a: a.id.as_str().to_string(),
+                        b: b.id.as_str().to_string(),
                     });
                 }
             }
@@ -156,7 +160,7 @@ impl Template {
 
         // Where each look is allowed: the quit button has none of its own,
         // so no template can disguise it, and a sidebar button neither an
-        // image nor a style.
+        // image, a style nor more than one cell.
         for component in pages
             .iter()
             .flat_map(|p| p.components())
@@ -168,6 +172,8 @@ impl Template {
             for (field, used) in [
                 ("image", component.visual.image.is_some()),
                 ("style", !component.style.is_empty()),
+                ("row_span", component.position.row_span != 1),
+                ("col_span", component.position.col_span != 1),
             ] {
                 if used {
                     return Err(DomainError::NotAllowedInSidebar {
@@ -359,6 +365,16 @@ fn check_looks(component: &Component) -> Result<(), DomainError> {
     Ok(())
 }
 
+/// Whether two buttons cover at least one same cell: their rows and their
+/// columns both intersect. Counted in `u32`, so no span wraps around.
+fn overlap(a: &ComponentPosition, b: &ComponentPosition) -> bool {
+    let meet = |start_a: u16, span_a: u16, start_b: u16, span_b: u16| {
+        let (start_a, start_b) = (u32::from(start_a), u32::from(start_b));
+        start_a < start_b + u32::from(span_b) && start_b < start_a + u32::from(span_a)
+    };
+    meet(a.row, a.row_span, b.row, b.row_span) && meet(a.col, a.col_span, b.col, b.col_span)
+}
+
 /// The room `count` buttons of `size` need in a line: the buttons, the gaps
 /// between them and the padding on both ends. `count` is at least 1.
 fn span(count: u32, size: u32, gap: u32, pad: u32) -> u32 {
@@ -389,7 +405,12 @@ mod tests {
     fn with_images_rejects_an_icon_with_no_image() {
         let button = |id: &str, icon: Option<ImageRef>| Component {
             id: ComponentId::new(id),
-            position: ComponentPosition { row: 0, col: 0 },
+            position: ComponentPosition {
+                row: 0,
+                col: 0,
+                row_span: 1,
+                col_span: 1,
+            },
             visual: VisualProps {
                 icon,
                 ..VisualProps::default()
@@ -427,7 +448,12 @@ mod tests {
         let page = || {
             Page::new(vec![Component {
                 id: ComponentId::new("btn"),
-                position: ComponentPosition { row: 0, col: 0 },
+                position: ComponentPosition {
+                    row: 0,
+                    col: 0,
+                    row_span: 1,
+                    col_span: 1,
+                },
                 visual: VisualProps::default(),
                 style: ThemeOverrides::default(),
                 action: Action::App(AppAction::NextPage),

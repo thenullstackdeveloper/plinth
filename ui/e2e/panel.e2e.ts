@@ -3,7 +3,7 @@ import { expect, test, type Locator } from "@playwright/test";
 import defaultTheme from "../src/testing/fixtures/default-theme.json" with { type: "json" };
 import maxTheme from "../src/testing/fixtures/max-theme.json" with { type: "json" };
 import sliceTheme from "../src/testing/fixtures/slice-theme.json" with { type: "json" };
-import { app, calls, game, installFakeBackend } from "./fakeBackend";
+import { app, calls, game, installFakeBackend, spanning } from "./fakeBackend";
 import { blankPoint, box, swipe } from "./gestures";
 
 const SWIPE_LEFT = -400;
@@ -173,6 +173,36 @@ test("buttons sit in the cell their row and col give", async ({ page }) => {
   expect(c.height).toBeCloseTo(a.height, 1);
   expect(c.x + c.width).toBeCloseTo(area.x + area.width - padding, 1);
   expect(c.y + c.height).toBeCloseTo(area.y + area.height - padding, 1);
+});
+
+test("a 2x1 button covers two cells", async ({ page }) => {
+  // A 2×3 grid: `wide` over the first two columns of the first row, `b` in
+  // the third, and `c`, `d` and `e` one per cell of the second row.
+  await installFakeBackend(page, {
+    pages: [
+      [
+        spanning(game("wide", "Wide", 0, 0), 1, 2),
+        game("b", "B", 0, 2),
+        game("c", "C", 1, 0),
+        game("d", "D", 1, 1),
+        game("e", "E", 1, 2),
+      ],
+    ],
+  });
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Wide" })).toBeVisible();
+
+  const [wide, b, c, d] = await Promise.all(["Wide", "B", "C", "D"].map((name) => box(page.getByRole("button", { name, exact: true }))));
+  // `space.page.gap` 8 in default-theme.json.
+  const gap = 8;
+  // Two cells and the gap between them, over `c` and `d`, one row high.
+  expect(wide.width).toBeCloseTo(c.width + gap + d.width, 1);
+  expect(wide.width).toBeCloseTo(2 * b.width + gap, 1);
+  expect(wide.x).toBeCloseTo(c.x, 1);
+  expect(wide.x + wide.width).toBeCloseTo(d.x + d.width, 1);
+  expect(wide.height).toBeCloseTo(b.height, 1);
+  expect(wide.y).toBeCloseTo(b.y, 1);
+  expect(b.x).toBeCloseTo(wide.x + wide.width + gap, 1);
 });
 
 for (const [name, theme] of [

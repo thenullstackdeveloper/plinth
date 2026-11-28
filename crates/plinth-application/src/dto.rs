@@ -24,6 +24,10 @@ pub struct ComponentView {
     pub id: String,
     pub row: u16,
     pub col: u16,
+    /// The rows and columns it covers from `row` and `col`; 1 and 1 for a
+    /// button of one cell, as every sidebar button is.
+    pub row_span: u16,
+    pub col_span: u16,
     pub label: Option<String>,
     /// The icon next to the label, as an id of the template's images like
     /// `image_id`.
@@ -45,9 +49,9 @@ pub struct ComponentView {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PageView {
     pub components: Vec<ComponentView>,
-    /// Grid rows: the largest component `row` plus one.
+    /// Grid rows: the largest component `row + row_span`.
     pub rows: u32,
-    /// Grid columns: the largest component `col` plus one.
+    /// Grid columns: the largest component `col + col_span`.
     pub cols: u32,
     /// The background the page shows, its own or the template's default, as
     /// an id of the template's images like `image_id`.

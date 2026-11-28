@@ -142,6 +142,7 @@ impl FsTemplateSource {
             .and_then(Value::as_array)
             .map(Vec::as_slice)
             .unwrap_or_default();
+        reject_sidebar_spans(sidebar_nodes)?;
         let sidebar_comps = self.map_components(sidebar_nodes, images)?;
         let sidebar = Sidebar {
             default_side,
@@ -236,6 +237,8 @@ impl FsTemplateSource {
         let position = ComponentPosition {
             row: u16_field(pos, "row")?,
             col: u16_field(pos, "col")?,
+            row_span: opt_u16_field(pos, "row_span")?.unwrap_or(1),
+            col_span: opt_u16_field(pos, "col_span")?.unwrap_or(1),
         };
         let action = match node.get("keys") {
             Some(keys) => Action::Keys(map_keys(keys)?),
@@ -400,6 +403,23 @@ fn map_background(
         .transpose()
 }
 
+/// A sidebar button covers one cell, so a `row_span` or `col_span` written
+/// on it is refused, even a 1 the domain could not tell from none.
+fn reject_sidebar_spans(nodes: &[Value]) -> Result<(), TemplateError> {
+    for node in nodes {
+        let position = node.get("position");
+        for field in ["row_span", "col_span"] {
+            if position.and_then(|p| p.get(field)).is_some() {
+                return Err(domain_err(DomainError::NotAllowedInSidebar {
+                    field,
+                    component: str_field(node, "id")?,
+                }));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn format_mismatch(path: &ImagePath) -> TemplateError {
     TemplateError(format!(
         "`{}` is not a {} file",
@@ -472,6 +492,11 @@ fn str_field(node: &Value, key: &str) -> Result<String, TemplateError> {
 
 fn opt_str(node: &Value, key: &str) -> Option<String> {
     node.get(key).and_then(Value::as_str).map(str::to_string)
+}
+
+/// `u16_field` for a field that may be absent.
+fn opt_u16_field(node: &Value, key: &str) -> Result<Option<u16>, TemplateError> {
+    node.get(key).map(|_| u16_field(node, key)).transpose()
 }
 
 fn u16_field(node: &Value, key: &str) -> Result<u16, TemplateError> {
@@ -1649,5 +1674,91 @@ sidebar: {{ default_side: right, components: [] }}
             err.contains("does not satisfy the schema at `/pages/0/components/0/style`"),
             "{err}"
         );
+    }
+
+    // --- Buttons over several cells ---
+
+    /// A one-page template with `a` at (0, 0) and `b` at (0, 2), each with
+    /// `a_extra` / `b_extra` inside its `position`.
+    fn with_positions(a_extra: &str, b_extra: &str) -> String {
+        format!(
+            "schema_version: \"1\"\nmetadata: {{ game: WoW, version: \"1\", author: dev }}\npages:\n  - components:\n      - {{ id: a, position: {{ row: 0, col: 0{a_extra} }}, keys: \"m\" }}\n      - {{ id: b, position: {{ row: 0, col: 2{b_extra} }}, keys: \"m\" }}\nsidebar: {{ default_side: right, components: [] }}\n"
+        )
+    }
+
+    #[test]
+    fn spans_on_a_page_load_within_their_range() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let spans = |template: &Template| -> Vec<(u16, u16)> {
+            template.pages()[0]
+                .components()
+                .iter()
+                .map(|c| (c.position.row_span, c.position.col_span))
+                .collect()
+        };
+
+        // No span is one cell.
+        let plain = src.load_str(&with_positions("", "")).unwrap();
+        assert_eq!(spans(&plain), vec![(1, 1), (1, 1)]);
+        // The largest spans: 4 rows and, from column 2, 10 columns.
+        let largest = src
+            .load_str(&with_positions(
+                ", row_span: 2, col_span: 2",
+                ", row_span: 4, col_span: 10",
+            ))
+            .unwrap();
+        assert_eq!(spans(&largest), vec![(2, 2), (4, 10)]);
+
+        for (extra, at) in [
+            (", row_span: 0", "row_span"),
+            (", row_span: 5", "row_span"),
+            (", col_span: 0", "col_span"),
+            (", col_span: 11", "col_span"),
+            (", row_span: \"2\"", "row_span"),
+        ] {
+            let err = src.load_str(&with_positions("", extra)).unwrap_err().0;
+            assert!(
+                err.contains(&format!(
+                    "does not satisfy the schema at `/pages/0/components/1/position/{at}`"
+                )),
+                "{extra}: {err}"
+            );
+        }
+
+        // Three columns from column 0 reach `b` at column 2.
+        assert_eq!(
+            src.load_str(&with_positions(", col_span: 3", ""))
+                .err()
+                .map(|e| e.0)
+                .as_deref(),
+            Some("components `a` and `b` share a cell on page 0")
+        );
+        assert!(src.load_str(&with_positions(", col_span: 2", "")).is_ok());
+    }
+
+    #[test]
+    fn a_span_in_the_sidebar_is_rejected_even_if_it_is_1() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let lock = |position: &str| {
+            VALID.replace(
+                "    - id: lock\n      position: { row: 0, col: 0 }\n",
+                &format!("    - id: lock\n      position: {{ row: 0, col: 0{position} }}\n"),
+            )
+        };
+        assert!(src.load_str(&lock("")).is_ok());
+        for (position, field) in [
+            (", row_span: 1", "row_span"),
+            (", col_span: 1", "col_span"),
+            (", row_span: 2", "row_span"),
+            (", col_span: 1, row_span: 1", "row_span"),
+        ] {
+            assert_eq!(
+                src.load_str(&lock(position)).err().map(|e| e.0),
+                Some(format!(
+                    "`lock` is in the sidebar, which does not allow `{field}`"
+                )),
+                "{position}"
+            );
+        }
     }
 }

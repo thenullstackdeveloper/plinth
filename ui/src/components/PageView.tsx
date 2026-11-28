@@ -14,6 +14,14 @@ function tracks(n: number): string {
   return `repeat(${n}, minmax(var(--plinth-size-button-min), 1fr))`;
 }
 
+/** The grid lines a button covers: from one more than its `row` and `col`, over its spans (1 when absent). */
+function cellsOf(component: ComponentDto): CSSProperties {
+  return {
+    gridRow: `${component.row + 1} / span ${component.rowSpan ?? 1}`,
+    gridColumn: `${component.col + 1} / span ${component.colSpan ?? 1}`,
+  };
+}
+
 const pageVariants = {
   enter: (dir: number) => ({ transform: `translateX(${dir * 100}%)`, opacity: 0 }),
   center: { transform: "translateX(0%)", opacity: 1 },
@@ -138,7 +146,7 @@ export function PageView(props: {
                 allowImage
                 // Its own colours, if its `style` gives any, over the theme
                 // the panel sets: only on the button, so its neighbours keep it.
-                style={{ ...themeStyle(component.style ?? {}), gridRow: component.row + 1, gridColumn: component.col + 1 }}
+                style={{ ...themeStyle(component.style ?? {}), ...cellsOf(component) }}
                 onClick={() => {
                   if (!guard.shouldIgnoreClick()) void press(component.id);
                 }}

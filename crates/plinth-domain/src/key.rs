@@ -184,11 +184,15 @@ impl SidebarSide {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaVersion(pub String);
 
-/// Position of a component within its page (logical grid).
+/// Position of a component within its page (logical grid): its first cell,
+/// and how many rows and columns it covers from there (1 for a button of one
+/// cell). In the sidebar both spans are 1.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComponentPosition {
     pub row: u16,
     pub col: u16,
+    pub row_span: u16,
+    pub col_span: u16,
 }
 
 /// Purely visual properties of a component (label, icon, image…). The domain

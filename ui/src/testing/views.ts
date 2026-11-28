@@ -10,6 +10,11 @@ export function component(
   return { id, row: at.row, col: at.col, label, actionKind: "game", appAction: null };
 }
 
+/** `component` over `rowSpan` rows and `colSpan` columns from its cell, sent only when more than 1, as Rust does. */
+export function spanning(component: ComponentDto, rowSpan: number, colSpan: number): ComponentDto {
+  return { ...component, ...(rowSpan > 1 && { rowSpan }), ...(colSpan > 1 && { colSpan }) };
+}
+
 /** `component` with the image of id `imageId`, a key of the store's `images`. */
 export function withImage(component: ComponentDto, imageId: string): ComponentDto {
   return { ...component, imageId };
@@ -35,10 +40,14 @@ export function inRow(components: ComponentDto[], row = 0): ComponentDto[] {
   return components.map((c, col) => ({ ...c, row, col }));
 }
 
-/** A page with its grid size, as Rust computes it: the largest `row` and `col` plus one. */
+/** A page with its grid size, as Rust computes it: the largest `row + rowSpan` and `col + colSpan`. */
 function page(components: ComponentDto[]): PageDto {
-  const span = (pick: (c: ComponentDto) => number) => Math.max(0, ...components.map((c) => pick(c) + 1));
-  return { components, rows: span((c) => c.row), cols: span((c) => c.col) };
+  const end = (pick: (c: ComponentDto) => number) => Math.max(0, ...components.map(pick));
+  return {
+    components,
+    rows: end((c) => c.row + (c.rowSpan ?? 1)),
+    cols: end((c) => c.col + (c.colSpan ?? 1)),
+  };
 }
 
 /** A render view for tests, one entry of `pages` per page, with the default theme. */

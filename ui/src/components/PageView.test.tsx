@@ -3,7 +3,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 import type { ComponentDto } from "../adapters/panelApi";
 import { usePanelStore } from "../store/panelStore";
-import { component, inRow } from "../testing/views";
+import { component, inRow, spanning } from "../testing/views";
 import { PageView } from "./PageView";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -18,7 +18,7 @@ function showing(components: ComponentDto[], rows: number, cols: number) {
   );
 }
 
-/** The grid cell a button sits in, as CSS lines: one more than its `row` and `col`. */
+/** The grid cells a button covers, as CSS lines: from one more than its `row` and `col`, over its spans. */
 function cellOf(name: string): [string, string] {
   const button = screen.getByRole("button", { name });
   return [button.style.gridRow, button.style.gridColumn];
@@ -30,10 +30,25 @@ test("places each button in its grid cell", () => {
     2,
     3,
   );
-  expect(cellOf("a")).toEqual(["1", "1"]);
-  expect(cellOf("b")).toEqual(["1", "2"]);
-  expect(cellOf("c")).toEqual(["1", "3"]);
-  expect(cellOf("d")).toEqual(["2", "3"]);
+  expect(cellOf("a")).toEqual(["1 / span 1", "1 / span 1"]);
+  expect(cellOf("b")).toEqual(["1 / span 1", "2 / span 1"]);
+  expect(cellOf("c")).toEqual(["1 / span 1", "3 / span 1"]);
+  expect(cellOf("d")).toEqual(["2 / span 1", "3 / span 1"]);
+});
+
+test("places a spanning button across its cells", () => {
+  showing(
+    [
+      spanning(component("tall"), 2, 1),
+      spanning(component("wide", "wide", { row: 0, col: 1 }), 1, 3),
+      spanning(component("big", "big", { row: 1, col: 1 }), 4, 10),
+    ],
+    5,
+    11,
+  );
+  expect(cellOf("tall")).toEqual(["1 / span 2", "1 / span 1"]);
+  expect(cellOf("wide")).toEqual(["1 / span 1", "2 / span 3"]);
+  expect(cellOf("big")).toEqual(["2 / span 4", "2 / span 10"]);
 });
 
 test("sizes the grid from the page", () => {

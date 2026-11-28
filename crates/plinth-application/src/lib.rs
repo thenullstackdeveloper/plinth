@@ -51,7 +51,12 @@ mod tests {
     fn comp(id: &str, col: u16, action: Action) -> Component {
         Component {
             id: ComponentId::new(id),
-            position: ComponentPosition { row: 0, col },
+            position: ComponentPosition {
+                row: 0,
+                col,
+                row_span: 1,
+                col_span: 1,
+            },
             visual: VisualProps {
                 label: Some(id.to_string()),
                 icon: None,
@@ -593,7 +598,12 @@ mod tests {
     #[test]
     fn render_state_carries_rows_and_cols() {
         let at = |id: &str, row: u16, col: u16| Component {
-            position: ComponentPosition { row, col },
+            position: ComponentPosition {
+                row,
+                col,
+                row_span: 1,
+                col_span: 1,
+            },
             ..comp(id, 0, Action::App(AppAction::NextPage))
         };
         let page = Page::new(vec![at("a", 0, 0), at("b", 2, 1), at("c", 1, 3)]).unwrap();
@@ -614,7 +624,12 @@ mod tests {
     #[test]
     fn sidebar_is_ordered_by_row() {
         let at = |id: &str, row: u16, col: u16| Component {
-            position: ComponentPosition { row, col },
+            position: ComponentPosition {
+                row,
+                col,
+                row_span: 1,
+                col_span: 1,
+            },
             ..comp(id, 0, Action::App(AppAction::NextPage))
         };
         let page = Page::new(vec![at("next", 0, 0)]).unwrap();

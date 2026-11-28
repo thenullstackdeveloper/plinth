@@ -195,7 +195,12 @@ mod tests {
     fn component(id: &str, action: Action) -> Component {
         Component {
             id: ComponentId::new(id),
-            position: ComponentPosition { row: 0, col: 0 },
+            position: ComponentPosition {
+                row: 0,
+                col: 0,
+                row_span: 1,
+                col_span: 1,
+            },
             visual: VisualProps::default(),
             style: Default::default(),
             action,
@@ -343,8 +348,18 @@ mod tests {
     };
 
     fn at(id: &str, row: u16, col: u16) -> Component {
+        spanning(id, row, col, 1, 1)
+    }
+
+    /// A button from `row`, `col` over `row_span` rows and `col_span` columns.
+    fn spanning(id: &str, row: u16, col: u16, row_span: u16, col_span: u16) -> Component {
         Component {
-            position: ComponentPosition { row, col },
+            position: ComponentPosition {
+                row,
+                col,
+                row_span,
+                col_span,
+            },
             ..component(id, Action::App(AppAction::NextPage))
         }
     }
@@ -568,18 +583,149 @@ mod tests {
         let err = Template::new(meta(), vec![first, second], sidebar).unwrap_err();
         assert_eq!(
             err,
-            DomainError::DuplicatePosition {
+            DomainError::CellsOverlap {
                 page: 1,
-                row: 1,
-                col: 2,
-                first: "c".into(),
-                second: "d".into(),
+                a: "c".into(),
+                b: "d".into(),
             }
         );
         assert_eq!(
             err.to_string(),
-            "components `c` and `d` share the cell row 1, col 2 on page 1"
+            "components `c` and `d` share a cell on page 1"
         );
+    }
+
+    #[test]
+    fn two_buttons_sharing_a_cell_overlap() {
+        let sidebar = || Sidebar {
+            default_side: SidebarSide::Right,
+            components: vec![],
+        };
+        let overlap = |a: Component, b: Component| {
+            Template::new(meta(), vec![Page::new(vec![a, b]).unwrap()], sidebar()).err()
+        };
+        let cells = |a: &str, b: &str| {
+            Some(DomainError::CellsOverlap {
+                page: 0,
+                a: a.into(),
+                b: b.into(),
+            })
+        };
+        // A 2×3 button from (1, 1) covers rows 1–2 and columns 1–3.
+        let wide = || spanning("wide", 1, 1, 2, 3);
+        for (row, col) in [(1, 1), (2, 3), (1, 3), (2, 1), (2, 2)] {
+            assert_eq!(
+                overlap(wide(), at("x", row, col)),
+                cells("wide", "x"),
+                "({row}, {col}) is inside"
+            );
+            // In the other order the names follow it.
+            assert_eq!(
+                overlap(at("x", row, col), wide()),
+                cells("x", "wide"),
+                "({row}, {col}) is inside"
+            );
+        }
+        for (row, col) in [(0, 1), (3, 1), (1, 0), (1, 4), (0, 0), (3, 4)] {
+            assert_eq!(
+                overlap(wide(), at("x", row, col)),
+                None,
+                "({row}, {col}) is outside"
+            );
+        }
+        // Two spanning buttons that only touch the same corner cell.
+        assert_eq!(
+            overlap(wide(), spanning("tall", 0, 3, 2, 1)),
+            cells("wide", "tall")
+        );
+        assert_eq!(overlap(wide(), spanning("tall", 0, 4, 4, 1)), None);
+        // A span past the end of `u16` neither wraps nor panics: three rows
+        // from the last but one reach the last.
+        assert_eq!(
+            overlap(spanning("far", u16::MAX - 1, 0, 3, 1), at("x", u16::MAX, 0)),
+            cells("far", "x")
+        );
+        assert_eq!(
+            overlap(
+                spanning("far", u16::MAX, u16::MAX, u16::MAX, u16::MAX),
+                at("x", 0, 0)
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn a_span_counts_for_the_grid_size_and_the_fit() {
+        let page = Page::new(vec![spanning("a", 0, 0, 2, 3), at("b", 0, 3)]).unwrap();
+        assert_eq!(page.grid_size(), GridSize { rows: 2, cols: 4 });
+        let tall = Page::new(vec![spanning("a", 1, 0, 4, 1)]).unwrap();
+        assert_eq!(tall.grid_size(), GridSize { rows: 5, cols: 1 });
+
+        // Ten columns fit next to the sidebar, eleven do not (as in
+        // `rejects_a_grid_too_wide`): a button at column 8 spanning two ends
+        // at the tenth, one at column 9 spanning two at the eleventh.
+        assert_eq!(
+            laid_out(vec![spanning("a", 0, 8, 1, 2)], vec![], &[]).check_fit(PANEL),
+            Ok(())
+        );
+        assert_eq!(
+            laid_out(vec![spanning("a", 0, 9, 1, 2)], vec![], &[]).check_fit(PANEL),
+            Err(DomainError::ThemeDoesNotFit {
+                area: "page grid width",
+                needed: 808,
+                available: 772,
+            })
+        );
+        // Four rows fit the tight theme of `fits_at_the_exact_height`; a
+        // button at row 1 spanning four needs five.
+        let tight = [
+            ("size.button.min", 64),
+            ("space.page.gap", 12),
+            ("space.page.padding", 4),
+        ];
+        assert_eq!(
+            laid_out(vec![spanning("a", 0, 0, 4, 1)], vec![], &tight).check_fit(PANEL),
+            Ok(())
+        );
+        assert_eq!(
+            laid_out(vec![spanning("a", 1, 0, 4, 1)], vec![], &tight).check_fit(PANEL),
+            Err(DomainError::ThemeDoesNotFit {
+                area: "page grid height",
+                needed: 376,
+                available: 300,
+            })
+        );
+    }
+
+    #[test]
+    fn a_sidebar_button_spanning_cells_is_rejected() {
+        let page = || Page::new(vec![at("a", 0, 0)]).unwrap();
+        let in_sidebar = |button: Component| {
+            let sidebar = Sidebar {
+                default_side: SidebarSide::Right,
+                components: vec![at("first", 0, 0), button],
+            };
+            Template::new(meta(), vec![page()], sidebar).err()
+        };
+        for (button, field) in [
+            (spanning("lock", 1, 0, 2, 1), "row_span"),
+            (spanning("lock", 1, 0, 1, 2), "col_span"),
+            (spanning("lock", 1, 0, 2, 2), "row_span"),
+        ] {
+            let err = in_sidebar(button);
+            assert_eq!(
+                err,
+                Some(DomainError::NotAllowedInSidebar {
+                    field,
+                    component: "lock".into(),
+                })
+            );
+            assert_eq!(
+                err.unwrap().to_string(),
+                format!("`lock` is in the sidebar, which does not allow `{field}`")
+            );
+        }
+        assert_eq!(in_sidebar(spanning("lock", 1, 0, 1, 1)), None);
     }
 
     #[test]
@@ -609,10 +755,7 @@ mod tests {
     #[test]
     fn cells_are_checked_before_page_references() {
         let page = Page::new(vec![
-            Component {
-                position: ComponentPosition { row: 0, col: 0 },
-                ..component("jump", Action::App(AppAction::GoToPage(5)))
-            },
+            component("jump", Action::App(AppAction::GoToPage(5))),
             at("b", 0, 0),
         ])
         .unwrap();
@@ -622,7 +765,7 @@ mod tests {
         };
         assert!(matches!(
             Template::new(meta(), vec![page], sidebar).unwrap_err(),
-            DomainError::DuplicatePosition { .. }
+            DomainError::CellsOverlap { .. }
         ));
     }
 }

@@ -238,6 +238,8 @@ pub fn query_render_state(
         id: c.id.as_str().to_string(),
         row: c.position.row,
         col: c.position.col,
+        row_span: c.position.row_span,
+        col_span: c.position.col_span,
         label: c.visual.label.clone(),
         icon_id: c.visual.icon.map(|icon| image_id(generation, icon)),
         image_id: c.visual.image.map(|image| image_id(generation, image)),

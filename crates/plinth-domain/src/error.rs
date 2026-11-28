@@ -89,17 +89,10 @@ pub enum DomainError {
     #[error("theme token `{0}` needs a non-empty list of plain font names")]
     InvalidFontFamily(String),
 
-    /// Two components of the same page sit in the same cell of its grid.
-    #[error(
-        "components `{first}` and `{second}` share the cell row {row}, col {col} on page {page}"
-    )]
-    DuplicatePosition {
-        page: usize,
-        row: u16,
-        col: u16,
-        first: String,
-        second: String,
-    },
+    /// Two components of the same page cover at least one same cell of its
+    /// grid; `a` is the one the page lists first.
+    #[error("components `{a}` and `{b}` share a cell on page {page}")]
+    CellsOverlap { page: usize, a: String, b: String },
 
     /// The grid or the sidebar needs more room than the panel has.
     #[error(
