@@ -3,7 +3,11 @@ import { themeStyle } from "../theme";
 import { PageView } from "./PageView";
 import { Sidebar } from "./Sidebar";
 
-/** The panel layout: the sidebar on its side, and the current page, under the template's theme. */
+/**
+ * The panel layout: the sidebar on its side, and the current page, under the
+ * template's theme and effects. `data-press` picks the press feedback of every
+ * button, the sidebar's too, in panel.css.
+ */
 export function Panel() {
   const view = usePanelStore((s) => s.view);
   const lastDirection = usePanelStore((s) => s.lastDirection);
@@ -16,6 +20,7 @@ export function Panel() {
       className="panel"
       data-side={view.sidebarSide}
       data-locked={String(view.locked)}
+      data-press={view.effects.press}
       style={themeStyle(view.theme)}
     >
       {view.sidebarSide === "left" && sidebar}
@@ -27,6 +32,7 @@ export function Panel() {
         direction={lastDirection}
         locked={view.locked}
         transitionMs={view.pageTransitionMs}
+        transition={view.effects.pageTransition}
       />
       {view.sidebarSide === "right" && sidebar}
     </div>

@@ -39,6 +39,16 @@ export type PageDto = {
   backgroundId?: string;
 };
 
+/**
+ * The template's effects, from the catalogue: how the page changes and how a
+ * button reacts while held down. The durations stay `pageTransitionMs` and
+ * `motion.press-feedback`.
+ */
+export type Effects = {
+  pageTransition: "slide" | "fade" | "none";
+  press: "lighten" | "sink" | "none";
+};
+
 export type RenderView = {
   pages: PageDto[];
   currentPage: number;
@@ -48,6 +58,7 @@ export type RenderView = {
   theme: ThemeVars;
   /** How long the change of page takes, from `motion.page-transition`. */
   pageTransitionMs: number;
+  effects: Effects;
 };
 
 export type NavDirection = "next" | "prev";

@@ -11,8 +11,8 @@ use plinth_application::{
     ComponentView, ConfigStore, GameKeybindProvider, InputSender, Prefs,
 };
 use plinth_domain::{
-    Action, AppAction, ComponentId, DomainError, ImageRef, NavDirection, PanelSize, RuntimeState,
-    SidebarSide, Template,
+    Action, AppAction, ComponentId, DomainError, Effects, ImageRef, NavDirection, PageTransition,
+    PanelSize, PressEffect, RuntimeState, SidebarSide, Template,
 };
 use plinth_infra::template_dir::TemplatePackage;
 use plinth_infra::template_fs::FsTemplateSource;
@@ -78,6 +78,35 @@ pub struct RenderView {
     pub theme: BTreeMap<String, String>,
     /// How long the change of page takes, in milliseconds.
     pub page_transition_ms: u16,
+    /// The template's change of page and press feedback.
+    pub effects: EffectsDto,
+}
+
+/// The template's effects, by their name in the catalogue.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EffectsDto {
+    /// `"slide"`, `"fade"` or `"none"`.
+    pub page_transition: &'static str,
+    /// `"lighten"`, `"sink"` or `"none"`.
+    pub press: &'static str,
+}
+
+impl From<Effects> for EffectsDto {
+    fn from(effects: Effects) -> Self {
+        Self {
+            page_transition: match effects.page_transition {
+                PageTransition::Slide => "slide",
+                PageTransition::Fade => "fade",
+                PageTransition::None => "none",
+            },
+            press: match effects.press {
+                PressEffect::Lighten => "lighten",
+                PressEffect::Sink => "sink",
+                PressEffect::None => "none",
+            },
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -310,6 +339,7 @@ where
                 .map(|var| (var.name, var.value))
                 .collect(),
             page_transition_ms: state.page_transition_ms,
+            effects: state.effects.into(),
         }
     }
 
@@ -752,6 +782,30 @@ mod tests {
             .is_ok());
         assert_eq!(panel.template_name(), Some("wow-demo.yaml"));
     }
+    #[test]
+    fn render_view_carries_the_effects() {
+        let effects = |panel: &TestPanel<InMemoryConfigStore>| {
+            serde_json::to_value(panel.render()).unwrap()["effects"].clone()
+        };
+        assert_eq!(
+            effects(&panel_with(WOW_PHASE1_TEMPLATE)),
+            serde_json::json!({ "pageTransition": "slide", "press": "lighten" })
+        );
+        for (block, json) in [
+            (
+                "page_transition: fade, press: sink",
+                serde_json::json!({ "pageTransition": "fade", "press": "sink" }),
+            ),
+            (
+                "page_transition: none, press: none",
+                serde_json::json!({ "pageTransition": "none", "press": "none" }),
+            ),
+        ] {
+            let yaml = format!("{WOW_PHASE1_TEMPLATE}effects: {{ {block} }}\n");
+            assert_eq!(effects(&panel_with(&yaml)), json, "{block}");
+        }
+    }
+
     // --- The theme, against the values the UI tests use ---
 
     /// The resolved default theme the UI tests, stories and fake backend use.

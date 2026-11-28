@@ -39,6 +39,21 @@
       }
     },
     "background": { "$ref": "#/$defs/background" },
+    "effects": {
+      "type": "object",
+      "description": "The panel's animations, from a closed catalogue, for every page and button (the sidebar's too). Their durations stay the theme's motion.page-transition and motion.press-feedback.",
+      "additionalProperties": false,
+      "properties": {
+        "page_transition": {
+          "enum": ["slide", "fade", "none"],
+          "description": "How the page changes: 'slide' (the default) slides the pages across, 'fade' fades them into each other without moving, 'none' changes at once."
+        },
+        "press": {
+          "enum": ["lighten", "sink", "none"],
+          "description": "How a button reacts while held down: 'lighten' (the default) takes color.button.pressed-background, 'sink' shrinks it a little and keeps its colour, 'none' shows nothing. Quit and a toggle that is on keep their colours with every one."
+        }
+      }
+    },
     "theme": {
       "type": "object",
       "description": "Overrides of the design tokens, as a flat map from a token path ('color.button.background') to a scalar. Only the shape is checked here; the token catalog decides which tokens exist, which may change and which values they accept.",

@@ -61,6 +61,8 @@ export function viewWith(pages: ComponentDto[][], overrides: Partial<RenderView>
     theme: defaultTheme,
     // `motion.page-transition` in default-theme.json.
     pageTransitionMs: 200,
+    // What Rust sends for a template without `effects`.
+    effects: { pageTransition: "slide", press: "lighten" },
     ...overrides,
   };
 }

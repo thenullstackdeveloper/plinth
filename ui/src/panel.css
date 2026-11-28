@@ -116,12 +116,29 @@ body {
   line-height: var(--plinth-font-line-height-label);
   /* A tap is a press at once, never the start of a double-tap zoom. */
   touch-action: manipulation;
-  transition: background-color var(--plinth-motion-press-feedback);
+  transition:
+    background-color var(--plinth-motion-press-feedback),
+    transform var(--plinth-motion-press-feedback);
 }
 
-/* Feedback under the finger while the button is held down. */
+/* Feedback under the finger while the button is held down: `lighten`, the
+   default of `effects.press`. */
 .plinth-button:active {
   background-color: var(--plinth-color-button-pressed-background);
+}
+
+/* The other press effects, which `data-press` on .panel picks for every
+   button, the sidebar's too. `sink` shrinks the button a little; `sink` and
+   `none` keep its colour at rest, its own if its `style` gives one. The colour
+   rules leave out Quit and a toggle that is on, so Quit keeps its fixed
+   colours and the lock its toggled one. */
+.panel[data-press="sink"] .plinth-button:active {
+  transform: scale(0.96);
+}
+
+.panel[data-press="sink"] .plinth-button:not([data-app-action="quit"]):not([aria-pressed="true"]):active,
+.panel[data-press="none"] .plinth-button:not([data-app-action="quit"]):not([aria-pressed="true"]):active {
+  background-color: var(--plinth-color-button-background);
 }
 
 /* A toggle that is on, such as the lock. */

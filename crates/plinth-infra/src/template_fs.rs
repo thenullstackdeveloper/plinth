@@ -12,6 +12,9 @@
 //! the catalog decides what a template may change. A button's `style` takes
 //! the same path, and the catalog keeps it to the four colours of a button.
 //!
+//! The optional `effects` pick the change of page and the press feedback
+//! from a closed catalogue; the schema lists every name it allows.
+//!
 //! An `image`, an `icon` or a page `background` is read from the template's
 //! folder with the safe read of `TemplateAssets`, checked by its header
 //! (`image_check`) against its extension and the limits of its use, and kept
@@ -23,9 +26,10 @@ use std::path::{Path, PathBuf};
 
 use plinth_application::{TemplateError, TemplateSource};
 use plinth_domain::{
-    Action, ActionCatalog, Component, ComponentId, ComponentPosition, DomainError, ImageAsset,
-    ImagePath, ImageRef, ImageUse, KeyMacro, Page, SchemaVersion, Sidebar, SidebarSide, Template,
-    TemplateMetadata, Theme, ThemeCatalog, ThemeOverrides, TokenKind, TokenValue, VisualProps,
+    Action, ActionCatalog, Component, ComponentId, ComponentPosition, DomainError, Effects,
+    ImageAsset, ImagePath, ImageRef, ImageUse, KeyMacro, Page, PageTransition, PressEffect,
+    SchemaVersion, Sidebar, SidebarSide, Template, TemplateMetadata, Theme, ThemeCatalog,
+    ThemeOverrides, TokenKind, TokenValue, VisualProps,
 };
 use serde_json::Value;
 
@@ -150,10 +154,12 @@ impl FsTemplateSource {
         };
 
         let theme = self.map_theme(doc.get("theme"))?;
+        let effects = map_effects(doc.get("effects"))?;
         Template::new(metadata, pages, sidebar)
             .and_then(|template| {
                 template
                     .with_theme(theme)
+                    .with_effects(effects)
                     .with_background(background)
                     .with_images(images.finish())
             })
@@ -388,6 +394,32 @@ impl<'a> ImageLoader<'a> {
     fn finish(&mut self) -> Vec<ImageAsset> {
         std::mem::take(&mut self.images)
     }
+}
+
+/// The template's `effects`, each one the default when it is not given. The
+/// schema already keeps every value inside the catalogue.
+fn map_effects(node: Option<&Value>) -> Result<Effects, TemplateError> {
+    let mut effects = Effects::default();
+    let Some(node) = node else {
+        return Ok(effects);
+    };
+    if let Some(name) = opt_str(node, "page_transition") {
+        effects.page_transition = match name.as_str() {
+            "slide" => PageTransition::Slide,
+            "fade" => PageTransition::Fade,
+            "none" => PageTransition::None,
+            other => return Err(TemplateError(format!("unknown page transition `{other}`"))),
+        };
+    }
+    if let Some(name) = opt_str(node, "press") {
+        effects.press = match name.as_str() {
+            "lighten" => PressEffect::Lighten,
+            "sink" => PressEffect::Sink,
+            "none" => PressEffect::None,
+            other => return Err(TemplateError(format!("unknown press effect `{other}`"))),
+        };
+    }
+    Ok(effects)
 }
 
 /// The `background` of `node` (the root or a page), read with the limits of
@@ -1758,6 +1790,69 @@ sidebar: {{ default_side: right, components: [] }}
                     "`lock` is in the sidebar, which does not allow `{field}`"
                 )),
                 "{position}"
+            );
+        }
+    }
+
+    // --- Effects from the catalogue ---
+
+    #[test]
+    fn effects_default_to_slide_and_lighten() {
+        let slide_and_lighten = Effects {
+            page_transition: PageTransition::Slide,
+            press: PressEffect::Lighten,
+        };
+        assert_eq!(Effects::default(), slide_and_lighten);
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        // Without `effects`, and with an empty one.
+        assert_eq!(src.load_str(VALID).unwrap().effects(), slide_and_lighten);
+        let empty = format!("{VALID}effects: {{}}\n");
+        assert_eq!(src.load_str(&empty).unwrap().effects(), slide_and_lighten);
+    }
+
+    #[test]
+    fn effects_reads_every_catalogue_value() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        let effects = |block: &str| {
+            src.load_str(&format!("{VALID}effects: {{ {block} }}\n"))
+                .map(|template| template.effects())
+                .map_err(|e| e.0)
+        };
+        use PageTransition as T;
+        use PressEffect as P;
+        for (block, page_transition, press) in [
+            ("page_transition: slide", T::Slide, P::Lighten),
+            ("page_transition: fade", T::Fade, P::Lighten),
+            ("page_transition: none", T::None, P::Lighten),
+            ("press: lighten", T::Slide, P::Lighten),
+            ("press: sink", T::Slide, P::Sink),
+            ("press: none", T::Slide, P::None),
+            ("page_transition: fade, press: sink", T::Fade, P::Sink),
+            ("press: none, page_transition: none", T::None, P::None),
+        ] {
+            assert_eq!(
+                effects(block),
+                Ok(Effects {
+                    page_transition,
+                    press
+                }),
+                "{block}"
+            );
+        }
+        // Nothing outside the catalogue: no other name, no other field.
+        for (block, path) in [
+            ("page_transition: zoom", "/effects/page_transition"),
+            ("press: fade", "/effects/press"),
+            ("press: Sink", "/effects/press"),
+            ("page_transition: true", "/effects/page_transition"),
+            ("duration: 100", "/effects"),
+        ] {
+            let error = effects(block).unwrap_err();
+            assert!(
+                error.starts_with(&format!(
+                    "the template does not satisfy the schema at `{path}`"
+                )),
+                "{block}: {error}"
             );
         }
     }

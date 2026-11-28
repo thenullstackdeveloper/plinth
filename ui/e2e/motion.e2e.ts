@@ -1,5 +1,7 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
+import type { Effects } from "../src/adapters/panelApi";
+import defaultTheme from "../src/testing/fixtures/default-theme.json" with { type: "json" };
 import { installFakeBackend } from "./fakeBackend";
 import { type Frame, pageChange, readFrames, startFrames } from "./frames";
 import { blankPoint, box, swipe } from "./gestures";
@@ -106,3 +108,147 @@ test("a swipe refused at the last page springs back without going further", asyn
   expect.soft(Math.max(...late.map((f) => Math.abs(surface(f))))).toBeLessThanOrEqual(0.5);
   await expect(page.getByRole("button", { name: "Quest log" })).toBeVisible();
 });
+
+// --- The effects of the catalogue ---
+
+/**
+ * Opens the panel under `effects` and swipes from page 1 to page 2,
+ * recording every frame; returns them once page 2 is shown and its change
+ * has had time to end.
+ */
+async function changePage(page: Page, effects: Partial<Effects>) {
+  await installFakeBackend(page, { effects });
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "World map" })).toBeVisible();
+
+  const from = await blankPoint(page);
+  await startFrames(page);
+  await swipe(page, from, SWIPE_LEFT);
+  await expect(page.getByRole("button", { name: "Bags" })).toBeVisible();
+  await page.waitForTimeout(300);
+  return readFrames(page);
+}
+
+/** Whether frame `f` shows the button labelled `label` on a page. */
+const shows = (f: Frame, label: string) => f.labels.includes(label);
+
+test("fade does not move the page", async ({ page }) => {
+  const { upAt, frames } = await changePage(page, { pageTransition: "fade" });
+  const after = frames.filter((f) => f.t >= upAt);
+
+  // The test did see the change: both pages on screen at once…
+  expect(after.some((f) => shows(f, "World map") && shows(f, "Bags"))).toBe(true);
+  // …neither of them ever off the page's edge…
+  expect(frames.flatMap((f) => f.slides.map((s) => s.dx)).filter((dx) => Math.abs(dx) > 0.5)).toEqual([]);
+  // …while the opacity changes: a page half seen on some frame.
+  expect(after.some((f) => f.slides.some((s) => s.opacity > 0 && s.opacity < 1))).toBe(true);
+});
+
+test("none changes page with no frame in between", async ({ page }) => {
+  const { upAt, frames } = await changePage(page, { pageTransition: "none" });
+  const after = frames.filter((f) => f.t >= upAt);
+
+  // The first frame with page 2 has it alone, in place and opaque…
+  const first = after.find((f) => shows(f, "Bags"));
+  expect(first, "a frame shows page 2").toBeDefined();
+  expect(first?.slides).toHaveLength(1);
+  expect(Math.abs(first?.slides[0].dx ?? Number.NaN)).toBeLessThanOrEqual(0.5);
+  expect(first?.slides[0].opacity).toBe(1);
+  // …and no frame ever shows both pages.
+  expect(frames.filter((f) => shows(f, "World map") && shows(f, "Bags"))).toEqual([]);
+  // Page 1 was on screen until then: the recording covers the change.
+  expect(frames.some((f) => shows(f, "World map"))).toBe(true);
+});
+
+/** The colour Chromium paints behind a button, and its computed `transform`. */
+function looksOf(locator: Locator): Promise<{ background: string; transform: string }> {
+  return locator.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { background: style.backgroundColor, transform: style.transform };
+  });
+}
+
+/** The horizontal scale of the button's `transform` matrix: 1 without one. */
+async function scaleOf(locator: Locator): Promise<number> {
+  const { transform } = await looksOf(locator);
+  if (transform === "none") return 1;
+  const match = /^matrix\(([^,]+),/.exec(transform);
+  if (!match) throw new Error(`not a 2D matrix: ${transform}`);
+  return Number(match[1]);
+}
+
+/** Presses the mouse down on the middle of `locator`, and checks it is held (`:active`). */
+async function holdDown(page: Page, locator: Locator): Promise<void> {
+  const b = await box(locator);
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  expect(await locator.evaluate((el) => el.matches(":active"))).toBe(true);
+}
+
+/** Longer than `motion.press-feedback` (80 ms in the default theme): any feedback has run by then. */
+const FEEDBACK_RUN_MS = 250;
+
+test("sink scales the pressed button", async ({ page }) => {
+  await installFakeBackend(page, { effects: { press: "sink" } });
+  await page.goto("/");
+  const worldMap = page.getByRole("button", { name: "World map" });
+  await expect(worldMap).toBeVisible();
+  const rest = await looksOf(worldMap);
+  expect(rest.transform).toBe("none");
+
+  await holdDown(page, worldMap);
+  // Shrunk to 0.96 while held…
+  await expect.poll(async () => Math.abs((await scaleOf(worldMap)) - 0.96)).toBeLessThanOrEqual(0.01);
+  // …in its colour at rest, not `color.button.pressed-background`.
+  expect((await looksOf(worldMap)).background).toBe(rest.background);
+  await page.mouse.up();
+  await expect.poll(() => scaleOf(worldMap)).toBe(1);
+});
+
+test("press none gives no visual feedback", async ({ page }) => {
+  await installFakeBackend(page, { effects: { press: "none" } });
+  await page.goto("/");
+  const worldMap = page.getByRole("button", { name: "World map" });
+  await expect(worldMap).toBeVisible();
+  const rest = await looksOf(worldMap);
+
+  await holdDown(page, worldMap);
+  await page.waitForTimeout(FEEDBACK_RUN_MS);
+  expect(await looksOf(worldMap)).toEqual(rest);
+  await page.mouse.up();
+});
+
+test("quit keeps its colours with every press effect", async ({ context }) => {
+  const quitBackground = hexToRgb(defaultTheme["--plinth-color-quit-background"]);
+  const toggledBackground = hexToRgb(defaultTheme["--plinth-color-button-toggled-background"]);
+  for (const press of ["sink", "none"] as const) {
+    const page = await context.newPage();
+    await installFakeBackend(page, { effects: { press } });
+    await page.goto("/");
+    const quit = page.getByRole("button", { name: "Quit" });
+    const lock = page.getByRole("button", { name: "Lock" });
+    await lock.click();
+    await expect(lock).toHaveAttribute("aria-pressed", "true");
+
+    // Quit held down keeps the fixed `color.quit.background`…
+    await holdDown(page, quit);
+    await page.waitForTimeout(FEEDBACK_RUN_MS);
+    expect((await looksOf(quit)).background, press).toBe(quitBackground);
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
+
+    // …and the lock, on and held down, its toggled colour.
+    await holdDown(page, lock);
+    await page.waitForTimeout(FEEDBACK_RUN_MS);
+    expect((await looksOf(lock)).background, press).toBe(toggledBackground);
+    await page.mouse.move(0, 0);
+    await page.mouse.up();
+    await page.close();
+  }
+});
+
+/** `#rrggbb` as Chromium writes a computed colour. */
+function hexToRgb(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+}

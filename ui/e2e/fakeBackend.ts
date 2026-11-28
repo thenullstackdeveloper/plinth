@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import type { ComponentDto, PageDto, TemplateImages, ThemeVars } from "../src/adapters/panelApi";
+import type { ComponentDto, Effects, PageDto, TemplateImages, ThemeVars } from "../src/adapters/panelApi";
 import defaultTheme from "../src/testing/fixtures/default-theme.json" with { type: "json" };
 
 /** A game button in the cell `row`, `col`. */
@@ -59,10 +59,18 @@ export type FakeOptions = {
   images?: TemplateImages;
   /** The `backgroundId` of each page, by index, already resolved as Rust does; no background when absent. */
   backgrounds?: (string | undefined)[];
+  /** The template's effects; each one absent is its default, `slide` and `lighten`, as Rust resolves it. */
+  effects?: Partial<Effects>;
 };
 
 /** What the backend holds of its template, and changes on `emitPanelChanged`. */
-type TemplateData = { pages: PageDto[]; sidebar: ComponentDto[]; theme: ThemeVars; images: TemplateImages };
+type TemplateData = {
+  pages: PageDto[];
+  sidebar: ComponentDto[];
+  theme: ThemeVars;
+  images: TemplateImages;
+  effects: Effects;
+};
 
 /** `options` as the page gets them, with the defaults filled in and the grids computed. */
 function templateData(options: FakeOptions): TemplateData {
@@ -71,6 +79,7 @@ function templateData(options: FakeOptions): TemplateData {
     sidebar: options.sidebar ?? SIDEBAR,
     theme: options.theme ?? defaultTheme,
     images: options.images ?? {},
+    effects: { pageTransition: "slide", press: "lighten", ...options.effects },
   };
 }
 
@@ -104,6 +113,7 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
       theme: data.theme,
       // `motion.page-transition` of the default theme.
       pageTransitionMs: 200,
+      effects: data.effects,
     });
 
     const callbacks = new Map<number, (payload: unknown) => void>();
@@ -183,7 +193,7 @@ export async function installFakeBackend(page: Page, options: FakeOptions = {}):
 
 /**
  * Switches the fake backend to the template of `next` (its pages, sidebar,
- * theme and images; the defaults for what it leaves out) and fires
+ * theme, images and effects; the defaults for what it leaves out) and fires
  * `panel-changed`, as picking a template in the tray does.
  */
 export async function emitPanelChanged(page: Page, next: FakeOptions = {}): Promise<void> {

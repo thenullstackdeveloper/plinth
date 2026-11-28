@@ -5,7 +5,7 @@
 //! resolution detail. Adding a field that leaks that breaks the `tests` test and
 //! forces a conscious decision.
 
-use plinth_domain::SidebarSide;
+use plinth_domain::{Effects, SidebarSide};
 
 /// An action as the UI sees it: only its nature, no keys.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,4 +78,6 @@ pub struct RenderState {
     pub theme: Vec<ThemeVar>,
     /// How long the change of page takes, from `motion.page-transition`.
     pub page_transition_ms: u16,
+    /// The template's change of page and press feedback, from the catalogue.
+    pub effects: Effects,
 }

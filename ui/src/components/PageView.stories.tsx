@@ -112,10 +112,10 @@ export const ShapeAndColoursFromTokens: Story = {
     await expect(style.borderTopColor).toBe("rgb(98, 106, 144)");
     await expect(style.borderTopLeftRadius).toBe("10px");
     // Made for a finger: no double-tap zoom, and a press shows within
-    // `motion.press-feedback` 80ms.
+    // `motion.press-feedback` 80ms, its colour and, for `sink`, its scale.
     await expect(style.touchAction).toBe("manipulation");
-    await expect(style.transitionProperty).toBe("background-color");
-    await expect(style.transitionDuration).toBe("0.08s");
+    await expect(style.transitionProperty).toBe("background-color, transform");
+    await expect(style.transitionDuration).toBe("0.08s, 0.08s");
   },
 };
 
@@ -175,6 +175,51 @@ export const PageChangeLastsTransitionMs: Story = {
     await waitFor(() => expect(canvasElement.getAnimations({ subtree: true }).length).toBeGreaterThan(0));
     const durations = canvasElement.getAnimations({ subtree: true }).map((a) => a.effect?.getTiming().duration);
     await expect(durations).toEqual(durations.map(() => 400));
+  },
+};
+
+/** The `transform` values the running page animations go through. */
+function animatedTransforms(canvasElement: HTMLElement): unknown[] {
+  return canvasElement
+    .getAnimations({ subtree: true })
+    .flatMap((a) => (a.effect instanceof KeyframeEffect ? a.effect.getKeyframes() : []))
+    .flatMap((frame) => ("transform" in frame ? [frame.transform] : []));
+}
+
+export const FadePageTransition: Story = {
+  args: { transition: "fade" },
+  render: (args) => <Turning {...args} />,
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "Turn page" }));
+    // Both pages fade, the leaving one out and the new one in…
+    await waitFor(() => expect(canvasElement.querySelectorAll(".page-slide")).toHaveLength(2));
+    await waitFor(() => expect(canvasElement.getAnimations({ subtree: true }).length).toBeGreaterThan(0));
+    // …and neither moves: every transform it animates is the page's place.
+    const transforms = animatedTransforms(canvasElement);
+    await expect(transforms.filter((t) => t !== "translateX(0%)")).toEqual([]);
+    // The fade ends before the story's `axe` check: half-faded text would
+    // fail its contrast, which is not the page at rest.
+    await Promise.all(canvasElement.getAnimations({ subtree: true }).map((a) => a.finished));
+    await waitFor(() => expect(canvasElement.querySelectorAll(".page-slide")).toHaveLength(1));
+    await expect(getComputedStyle(partOf(canvasElement, ".page-slide")).opacity).toBe("1");
+  },
+};
+
+export const NoPageTransition: Story = {
+  args: { transition: "none" },
+  render: (args) => <Turning {...args} />,
+  play: async ({ canvas, canvasElement, userEvent }) => {
+    const before = partOf(canvasElement, ".page-slide");
+    await userEvent.click(canvas.getByRole("button", { name: "Turn page" }));
+    // Read at once, with no waiting: React renders a click's update before
+    // the click resolves, so the new page has already replaced the old one,
+    // a new element alone, with nothing animating.
+    const slides = [...canvasElement.querySelectorAll(".page-slide")];
+    await expect(slides).toHaveLength(1);
+    await expect(slides[0]).not.toBe(before);
+    await expect(canvasElement.getAnimations({ subtree: true })).toEqual([]);
+    await expect(getComputedStyle(partOf(canvasElement, ".page-slide")).opacity).toBe("1");
+    await expect(canvas.getByRole("button", { name: "World map" })).toBeVisible();
   },
 };
 

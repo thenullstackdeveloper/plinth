@@ -284,5 +284,6 @@ pub fn query_render_state(
         locked: state.is_locked(),
         theme: theme_vars(template.theme()),
         page_transition_ms: template.theme().ms("motion.page-transition").unwrap_or(0),
+        effects: template.effects(),
     }
 }

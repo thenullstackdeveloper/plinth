@@ -22,7 +22,10 @@ pub use key::{
     SchemaVersion, SidebarSide, VisualProps,
 };
 pub use runtime::{NavDirection, RuntimeState};
-pub use template::{Component, ComponentId, Page, Sidebar, Template, TemplateMetadata};
+pub use template::{
+    Component, ComponentId, Effects, Page, PageTransition, PressEffect, Sidebar, Template,
+    TemplateMetadata,
+};
 pub use theme::{
     GridSize, Hundredths, PanelSize, Srgb8, Theme, ThemeCatalog, ThemeOverrides, TokenKind,
     TokenPath, TokenRule, TokenSpec, TokenValue, LAYOUT_TOKENS, STYLE_TOKENS,

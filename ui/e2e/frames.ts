@@ -8,6 +8,12 @@ export type Frame = {
   slides: { dx: number; opacity: number }[];
   /** Each `.page-surface`: its `x` minus the `.page`'s, in px. */
   surfaces: number[];
+  /**
+   * The labels shown on the buttons of every `.page-slide`, in the page's
+   * order: which pages are on screen, the leaving one and the new one during
+   * a change.
+   */
+  labels: string[];
   /** What is under the probe point: a page slide, the sidebar, anything else; `null` without a probe. */
   probeHit: "sidebar" | "page" | "other" | null;
 };
@@ -51,6 +57,7 @@ export async function startFrames(page: Page, probe?: { x: number; y: number }):
             opacity: Number(getComputedStyle(el).opacity),
           })),
           surfaces: [...document.querySelectorAll(".page-surface")].map(offset),
+          labels: [...document.querySelectorAll(".page-slide .plinth-button__label")].map((el) => el.textContent ?? ""),
           probeHit: probe ? hitAt(probe) : null,
         });
         requestAnimationFrame(sample);

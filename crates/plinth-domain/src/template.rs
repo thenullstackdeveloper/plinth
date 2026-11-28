@@ -92,6 +92,50 @@ pub struct Sidebar {
     pub components: Vec<Component>,
 }
 
+/// How the panel changes from one page to another, from the template's
+/// closed catalogue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageTransition {
+    /// The pages slide across, the leaving one out and the new one in.
+    Slide,
+    /// The pages fade into each other, without moving.
+    Fade,
+    /// The new page replaces the old one at once.
+    None,
+}
+
+/// How a button reacts while it is held down, from the template's closed
+/// catalogue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PressEffect {
+    /// It takes `color.button.pressed-background`.
+    Lighten,
+    /// It shrinks a little and keeps its colour.
+    Sink,
+    /// No visual reaction.
+    None,
+}
+
+/// The template's effects, for every button and page: the change of page
+/// and the feedback of a press. The durations stay the theme's
+/// `motion.page-transition` and `motion.press-feedback`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Effects {
+    pub page_transition: PageTransition,
+    pub press: PressEffect,
+}
+
+/// What a template without `effects` gets: the slide and the lighten of
+/// before the catalogue.
+impl Default for Effects {
+    fn default() -> Self {
+        Self {
+            page_transition: PageTransition::Slide,
+            press: PressEffect::Lighten,
+        }
+    }
+}
+
 /// The full template. Immutable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Template {
@@ -105,6 +149,8 @@ pub struct Template {
     images: Vec<ImageAsset>,
     /// The background of every page that has none of its own.
     background: Option<ImageRef>,
+    /// The change of page and the press feedback of the whole panel.
+    effects: Effects,
 }
 
 impl Template {
@@ -205,6 +251,7 @@ impl Template {
             theme: Theme::default(),
             images: Vec::new(),
             background: None,
+            effects: Effects::default(),
         })
     }
 
@@ -222,6 +269,16 @@ impl Template {
     pub fn with_background(mut self, background: Option<ImageRef>) -> Self {
         self.background = background;
         self
+    }
+
+    /// The same template with its effects.
+    pub fn with_effects(mut self, effects: Effects) -> Self {
+        self.effects = effects;
+        self
+    }
+
+    pub fn effects(&self) -> Effects {
+        self.effects
     }
 
     /// The background page `index` shows: its own, or else the template's
