@@ -179,10 +179,41 @@ impl SidebarSide {
     }
 }
 
-/// Version of the template schema the template was created with. Traceability of
-/// keybind drift across patches.
+/// The highest minor of template format 1 this Plinth reads. Every minor
+/// only adds optional fields, so a template of an older minor still loads.
+pub const SUPPORTED_MINOR: u16 = 0;
+
+/// The template format a template was written for. Once parsed it holds the
+/// version as `1.<minor>`: `"1"` and `"1.0"` are the same version.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemaVersion(pub String);
+
+impl SchemaVersion {
+    /// `1` or `1.<minor>`, with the minor written without leading zeros and
+    /// in at most 4 digits, and no later than `SUPPORTED_MINOR`.
+    pub fn parse(raw: &str) -> Result<Self, DomainError> {
+        let unsupported = || DomainError::UnsupportedFormat(raw.to_string());
+        let minor = match raw.strip_prefix('1') {
+            Some("") => 0,
+            Some(rest) => {
+                let digits = rest.strip_prefix('.').ok_or_else(unsupported)?;
+                let plain = digits == "0"
+                    || (matches!(digits.len(), 1..=4)
+                        && !digits.starts_with('0')
+                        && digits.bytes().all(|b| b.is_ascii_digit()));
+                if !plain {
+                    return Err(unsupported());
+                }
+                digits.parse::<u16>().map_err(|_| unsupported())?
+            }
+            None => return Err(unsupported()),
+        };
+        if minor > SUPPORTED_MINOR {
+            return Err(DomainError::NeedsNewerPlinth { minor });
+        }
+        Ok(Self(format!("1.{minor}")))
+    }
+}
 
 /// Position of a component within its page (logical grid): its first cell,
 /// and how many rows and columns it covers from there (1 for a button of one
@@ -207,4 +238,29 @@ pub struct VisualProps {
     pub image: Option<ImageRef>,
     /// The label is hidden from view but stays the button's accessible name.
     pub hide_label: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_1_and_1_0_are_the_same() {
+        assert_eq!(SchemaVersion::parse("1"), SchemaVersion::parse("1.0"));
+        assert_eq!(
+            SchemaVersion::parse("1"),
+            Ok(SchemaVersion("1.0".to_string()))
+        );
+    }
+
+    #[test]
+    fn leading_zeros_and_long_minors_are_rejected() {
+        for raw in ["1.01", "1.00", "1.12345", "1.", "1.0.0", "01", "1.a"] {
+            assert_eq!(
+                SchemaVersion::parse(raw),
+                Err(DomainError::UnsupportedFormat(raw.to_string())),
+                "{raw}"
+            );
+        }
+    }
 }

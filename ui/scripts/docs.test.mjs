@@ -44,6 +44,14 @@ describe("docs", () => {
     expect(missing).toEqual([]);
   });
 
+  it("the readme links the template format guide", () => {
+    const readme = prose(read("README.md"));
+    const templates = readme.split(/^## /m).find((section) => section.startsWith("Templates\n"));
+    expect(templates).toBeDefined();
+    expect(templates).toContain("](docs/templates.md)");
+    expect(statSync(join(repo, "docs/templates.md")).isFile()).toBe(true);
+  });
+
   it("the readme states the licence and that contributions are closed", () => {
     const readme = read("README.md");
     expect(readme).toContain("PolyForm Noncommercial 1.0.0");

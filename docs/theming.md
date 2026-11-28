@@ -1,6 +1,7 @@
 # Theming a template
 
-A template can change how the panel looks with an optional `theme` block. The theme overrides
+A template can change how the panel looks with an optional `theme` block. The rest of the
+template format, field by field, is in [The template format](templates.md). The theme overrides
 some of the design tokens in [`design/tokens.json`](../design/tokens.json); every token it does
 not mention keeps its default. A template without a `theme` looks like the default design.
 
@@ -68,7 +69,8 @@ it; a template that does not fit is **rejected, not clipped**:
 - sidebar height, with `n` buttons: `n·size.touch.min + (n−1)·space.sidebar.gap + 2·space.sidebar.padding ≤ 300`;
 - sidebar width: `size.sidebar.width − 2·space.sidebar.padding ≥ size.touch.min`.
 
-`rows` and `cols` are the highest `row` and `col` of the page plus one. With the defaults, a page
+`rows` and `cols` are the largest `row + row_span` and `col + col_span` of the page, where its
+farthest button ends. With the defaults, a page
 holds up to 3 rows (`3·64 + 2·8 + 24 = 232`) and 10 columns (`10·64 + 9·8 + 24 = 736 ≤ 772`), and
 the sidebar up to 5 buttons (`5·44 + 4·8 + 16 = 268`; six need 320). This applies even without a
 `theme`.

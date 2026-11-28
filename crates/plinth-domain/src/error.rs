@@ -149,4 +149,17 @@ pub enum DomainError {
         field: &'static str,
         component: String,
     },
+
+    /// A template written for a later minor of format 1 than this Plinth
+    /// reads (`SUPPORTED_MINOR`).
+    #[error(
+        "this template needs a newer Plinth (format 1.{minor}; this one reads up to 1.{supported})",
+        supported = crate::key::SUPPORTED_MINOR
+    )]
+    NeedsNewerPlinth { minor: u16 },
+
+    /// A `schema_version` that is not `1` or `1.<minor>`: another major
+    /// version, or a minor written with leading zeros or more than 4 digits.
+    #[error("format {0} is not supported")]
+    UnsupportedFormat(String),
 }

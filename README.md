@@ -115,8 +115,14 @@ sidebar:
 - **Colours and sizes** can be changed with an optional `theme` block: see
   [Theming a template](docs/theming.md).
 
-Every field and its rules are in the [template schema](schema/plinth.template.schema.json). A
-template that breaks a rule shows as `(invalid)` in the tray and the panel keeps working with
+A template can also be a folder with a `template.yaml` inside; only then can it bring its own PNG
+or WebP images, for pictures and icons on the buttons and page backgrounds. Any template can
+give a button its own colours, make a button cover several cells and pick its animations. Every
+field, its limits and the format version are explained in
+[The template format](docs/templates.md), and checked against the
+[template schema](schema/plinth.template.schema.json).
+
+A template that breaks a rule shows as `(invalid)` in the tray and the panel keeps working with
 another one. Choosing a template re-reads its file; after fixing an invalid one, restart Plinth.
 
 ## What Plinth never does

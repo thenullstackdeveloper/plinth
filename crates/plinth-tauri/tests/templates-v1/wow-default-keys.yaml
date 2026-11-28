@@ -1,0 +1,30 @@
+schema_version: "1"
+metadata:
+  game: "World of Warcraft"
+  version: "default-keys"
+  author: "thenullstackdeveloper"
+pages:
+  - components:
+      - { id: action_1, position: { row: 0, col: 0 }, keys: "1", label: "Action 1" }
+      - { id: action_2, position: { row: 0, col: 1 }, keys: "2", label: "Action 2" }
+      - { id: action_3, position: { row: 0, col: 2 }, keys: "3", label: "Action 3" }
+      - { id: action_4, position: { row: 1, col: 0 }, keys: "4", label: "Action 4" }
+      - { id: action_5, position: { row: 1, col: 1 }, keys: "5", label: "Action 5" }
+      - { id: action_6, position: { row: 1, col: 2 }, keys: "6", label: "Action 6" }
+  - components:
+      - { id: world_map, position: { row: 0, col: 0 }, keys: "m", label: "World map" }
+      - { id: character, position: { row: 0, col: 1 }, keys: "c", label: "Character" }
+      - { id: bags, position: { row: 0, col: 2 }, keys: "b", label: "Bags" }
+      - { id: spellbook, position: { row: 1, col: 0 }, keys: "p", label: "Spellbook" }
+      - { id: quest_log, position: { row: 1, col: 1 }, keys: "l", label: "Quest log" }
+      - { id: talents, position: { row: 1, col: 2 }, keys: "n", label: "Talents" }
+  - components:
+      - { id: bar_page_2, position: { row: 0, col: 0 }, keys: "shift+2", label: "Bar page 2" }
+      - { id: bar_page_1, position: { row: 0, col: 1 }, keys: "shift+1", label: "Bar page 1" }
+      - { id: char_and_bags, position: { row: 0, col: 2 }, keys: ["c", "b"], label: "Char + bags" }
+sidebar:
+  default_side: right
+  components:
+    - { id: lock, position: { row: 0, col: 0 }, action: "app.toggle_lock", label: "Lock" }
+    - { id: switch_side, position: { row: 1, col: 0 }, action: "app.switch_sidebar", label: "Switch side" }
+    - { id: quit, position: { row: 2, col: 0 }, action: "app.quit", label: "Quit" }

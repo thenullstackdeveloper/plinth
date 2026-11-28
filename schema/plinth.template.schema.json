@@ -9,7 +9,8 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "description": "Version of the schema the template was created with."
+      "pattern": "^1(\\.(0|[1-9][0-9]{0,3}))?$",
+      "description": "The template format the template is written for, quoted: \"1.<minor>\", where \"1\" is the same as \"1.0\". Within format 1 a minor only adds optional fields, so a template of any earlier minor keeps loading. This Plinth reads up to 1.0; a later minor is refused with a request for a newer Plinth, and another major version is not supported."
     },
     "metadata": {
       "type": "object",
@@ -160,7 +161,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 259,
-          "description": "A PNG that fills the face of the button: a path relative to the template's folder, like 'img/fire.png'. Only a template in a folder (with a template.yaml) can reference images. Not together with icon, not in the sidebar and not on the quit button."
+          "description": "A PNG or WebP that fills the face of the button: a path relative to the template's folder, like 'img/fire.png'. Only a template in a folder (with a template.yaml) can reference images. Not together with icon, not in the sidebar and not on the quit button."
         }
       }
     }

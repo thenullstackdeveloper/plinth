@@ -1,0 +1,21 @@
+schema_version: "1"
+metadata:
+  game: "World of Warcraft"
+  version: "phase-2-demo"
+  author: "thenullstackdeveloper"
+pages:
+  - components:
+      - { id: world_map, position: { row: 0, col: 0 }, action: "wow.world_map", label: "World map" }
+      - { id: character, position: { row: 0, col: 1 }, action: "wow.character", label: "Character" }
+  - components:
+      - { id: bags, position: { row: 0, col: 0 }, action: "wow.bags", label: "Bags" }
+      - { id: spellbook, position: { row: 0, col: 1 }, action: "wow.spellbook", label: "Spellbook" }
+  - components:
+      - { id: quest_log, position: { row: 0, col: 0 }, action: "wow.quest_log", label: "Quest log" }
+      - { id: talents, position: { row: 0, col: 1 }, action: "wow.talents", label: "Talents" }
+sidebar:
+  default_side: right
+  components:
+    - { id: lock, position: { row: 0, col: 0 }, action: "app.toggle_lock", label: "Lock" }
+    - { id: switch_side, position: { row: 1, col: 0 }, action: "app.switch_sidebar", label: "Switch side" }
+    - { id: quit, position: { row: 2, col: 0 }, action: "app.quit", label: "Quit" }

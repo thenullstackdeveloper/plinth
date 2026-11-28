@@ -77,7 +77,11 @@ impl FsTemplateSource {
         // A key written twice is refused, wherever it is.
         let doc = strict_yaml::from_str(&package.yaml)?;
 
-        // Before the shape: an unquoted `#` makes the value a comment, so the
+        // Before the shape: a template of a later format fails on the
+        // version, not on a field this Plinth does not know yet.
+        let version = schema_version(&doc)?;
+
+        // Before the shape too: an unquoted `#` makes the value a comment, so the
         // author gets a hint instead of a schema error about `null`.
         reject_empty_theme_values(&doc)?;
 
@@ -91,16 +95,17 @@ impl FsTemplateSource {
         }
 
         // Checks 2 and 3: catalog + invariants, via the mapping.
+        let version = version.ok_or_else(|| TemplateError("missing `schema_version`".into()))?;
         let mut images = ImageLoader::new(&package.assets);
-        self.map_template(&doc, &mut images)
+        self.map_template(&doc, version, &mut images)
     }
 
     fn map_template(
         &self,
         doc: &Value,
+        schema_version: SchemaVersion,
         images: &mut ImageLoader<'_>,
     ) -> Result<Template, TemplateError> {
-        let schema_version = str_field(doc, "schema_version")?;
         let meta_node = doc
             .get("metadata")
             .ok_or_else(|| TemplateError("missing `metadata`".into()))?;
@@ -108,7 +113,7 @@ impl FsTemplateSource {
             game: str_field(meta_node, "game")?,
             version: str_field(meta_node, "version")?,
             author: str_field(meta_node, "author")?,
-            schema_version: SchemaVersion(schema_version),
+            schema_version,
         };
 
         // The default background first, then each page's own: the images
@@ -476,6 +481,19 @@ fn map_keys(node: &Value) -> Result<KeyMacro, TemplateError> {
         _ => return Err(TemplateError("`keys` must be text or a list".into())),
     };
     KeyMacro::new(steps).map_err(domain_err)
+}
+
+/// The template's `schema_version`, parsed; `None` when it has none, which
+/// the schema then reports. It has to be YAML text: `1.0` unquoted is a
+/// number, and `1.10` would read as `1.1`.
+fn schema_version(doc: &Value) -> Result<Option<SchemaVersion>, TemplateError> {
+    let Some(node) = doc.get("schema_version") else {
+        return Ok(None);
+    };
+    let raw = node
+        .as_str()
+        .ok_or_else(|| TemplateError(r#"`schema_version` must be quoted, like "1.0""#.into()))?;
+    SchemaVersion::parse(raw).map(Some).map_err(domain_err)
 }
 
 fn domain_err(e: DomainError) -> TemplateError {
@@ -1853,6 +1871,69 @@ sidebar: {{ default_side: right, components: [] }}
                     "the template does not satisfy the schema at `{path}`"
                 )),
                 "{block}: {error}"
+            );
+        }
+    }
+
+    // --- The format version ---
+
+    /// `VALID` with its `schema_version` line replaced by `line`, and
+    /// `extra` added at the root.
+    fn with_version(line: &str, extra: &str) -> String {
+        format!("{}{extra}", VALID.replace("schema_version: \"1\"", line))
+    }
+
+    #[test]
+    fn a_newer_minor_says_it_needs_a_newer_plinth() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        // The field 1.1 would add is unknown to 1.0: the version speaks
+        // before the schema does.
+        let newer = with_version("schema_version: \"1.1\"", "glow: true\n");
+        assert_eq!(
+            src.load_str(&newer).unwrap_err().0,
+            "this template needs a newer Plinth (format 1.1; this one reads up to 1.0)"
+        );
+        let much_newer = with_version("schema_version: \"1.9999\"", "");
+        assert_eq!(
+            src.load_str(&much_newer).unwrap_err().0,
+            "this template needs a newer Plinth (format 1.9999; this one reads up to 1.0)"
+        );
+    }
+
+    #[test]
+    fn another_major_is_unsupported() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        for (version, message) in [
+            ("2", "format 2 is not supported"),
+            ("2.0", "format 2.0 is not supported"),
+            ("0.9", "format 0.9 is not supported"),
+        ] {
+            let other = with_version(&format!("schema_version: \"{version}\""), "glow: true\n");
+            assert_eq!(src.load_str(&other).unwrap_err().0, message, "{version}");
+        }
+    }
+
+    #[test]
+    fn an_unquoted_version_is_rejected() {
+        let src = FsTemplateSource::new(catalog()).unwrap();
+        for line in [
+            "schema_version: 1.0",
+            "schema_version: 1",
+            "schema_version: true",
+        ] {
+            assert_eq!(
+                src.load_str(&with_version(line, "")).unwrap_err().0,
+                "`schema_version` must be quoted, like \"1.0\"",
+                "{line}"
+            );
+        }
+        // Quoted, both spellings load and read as 1.0.
+        for line in ["schema_version: \"1.0\"", "schema_version: '1'"] {
+            let template = src.load_str(&with_version(line, "")).unwrap();
+            assert_eq!(
+                template.metadata().schema_version,
+                SchemaVersion("1.0".to_string()),
+                "{line}"
             );
         }
     }

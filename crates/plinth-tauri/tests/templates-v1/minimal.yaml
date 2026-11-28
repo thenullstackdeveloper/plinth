@@ -1,0 +1,11 @@
+schema_version: "1"
+metadata:
+  game: "World of Warcraft"
+  version: "minimal"
+  author: "thenullstackdeveloper"
+pages:
+  - components:
+      - { id: map, position: { row: 0, col: 0 }, keys: "m" }
+sidebar:
+  default_side: right
+  components: []
